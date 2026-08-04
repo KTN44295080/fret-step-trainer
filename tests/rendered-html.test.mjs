@@ -28,25 +28,41 @@ test("server-renders the finished guitar trainer", async () => {
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
-  const html = await response.text();
+  const html = (await response.text()).replaceAll("<!-- -->", "");
   assert.match(html, /<html lang="ja">/i);
   assert.match(html, /<title>FRET \/ STEP — 人生オーバー Lead Trainer<\/title>/i);
   assert.match(html, /人生オーバー/);
-  assert.match(html, /LEAD ONLY/);
+  assert.match(html, />LEAD</);
+  assert.match(html, /惑う星/);
+  assert.match(html, /リード／バッキング/);
+  assert.match(html, /ギターパートを選択/);
+  assert.match(html, /バッキングギター/);
+  assert.match(html, /動画・音源・判定を同時切替/);
+  assert.match(html, /207小節/);
+  assert.match(html, /練習曲を選択/);
   assert.match(html, /Ampero入力・チューナー・TAB判定/);
   assert.match(html, /TAB判定/);
   assert.match(html, /チューナー/);
   assert.match(html, /ギター入力レベル/);
   assert.match(html, /奏法記号を「指の動き」で見る/);
   assert.match(html, /LEAD TAB · 全曲/);
-  assert.match(html, /下段リードを1〜151小節/);
+  assert.match(html, /リードギターを1〜151小節/);
   assert.match(html, /TAB音源でまとめ再生/);
   assert.match(html, /表示4小節/);
   assert.match(html, /この区間/);
   assert.match(html, /曲全体 1〜151/);
+  assert.match(html, /再生範囲を選択/);
+  assert.match(html, /選択中 · 表示4小節 1〜4/);
+  assert.match(html, /aria-pressed="true"/);
+  assert.match(html, /aria-label="表示4小節 1〜4を再生"/);
   assert.match(html, /譜面を見ながら判定/);
   assert.match(html, /正解待ちで進む/);
   assert.match(html, /原曲動画/);
+  assert.match(html, /Aメロ/);
+  assert.match(html, /Bメロ/);
+  assert.match(html, /2番サビ/);
+  assert.match(html, /アウトロ/);
+  assert.doesNotMatch(html, /サビ〜間奏/);
   assert.match(html, /6LfUfHSIiMw/);
   assert.match(html, /aria-label="1小節目"/);
   assert.doesNotMatch(html, /PROCEDURAL TAB|スクショ下段|動画で通し再生|TECHNIQUE BLOCK|66〜81小節 · リード奏法編/);
@@ -70,6 +86,24 @@ test("keeps the input meter and tuner in the client implementation", async () =>
   assert.match(trainer, /inputMode === "tuner"/);
   assert.match(trainer, /firstStrongMinimum/);
   assert.match(trainer, /function playRange/);
+  assert.match(trainer, /type SongId = "life-over" \| "madow"/);
+  assert.match(trainer, /vPexB7CEMGY/);
+  assert.match(trainer, /85ORTRtwmF4/);
+  assert.match(trainer, /totalMeasures: 207/);
+  assert.match(trainer, /const MADOW_TAB_GLYPHS = buildMadowBackingTab\(\)/);
+  assert.match(trainer, /const MADOW_LEAD_TAB_GLYPHS = buildMadowLeadTab\(\)/);
+  assert.match(trainer, /const LIFE_BACKING_TAB_GLYPHS = buildLifeBackingTab\(\)/);
+  assert.match(trainer, /tab\[202\] = backingChord\(\["<7>"/);
+  assert.match(trainer, /tab\[205\] = backingDyad\(4\)/);
+  assert.match(trainer, /tab\[206\] = backingDyad\(7\)/);
+  assert.match(trainer, /function switchSong/);
+  assert.match(trainer, /function switchTrack/);
+  assert.match(trainer, /type TrackId = "lead" \| "backing"/);
+  assert.match(trainer, /function toggleSelectedPlayback/);
+  assert.match(trainer, /aria-pressed=\{selected\}/);
+  assert.match(trainer, /playing \? "■ 停止" : "▶ 再生"/);
+  assert.doesNotMatch(trainer, /onClick=\{\(\) => playRange\(1, 151/);
+  assert.doesNotMatch(trainer, /live-console sticky|sticky top-0 z-50/);
   assert.match(trainer, /scorePlaybackEvents/);
   assert.match(trainer, /activeNodesRef/);
   assert.match(trainer, /guidedMode/);
@@ -77,7 +111,7 @@ test("keeps the input meter and tuner in the client implementation", async () =>
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
 });
 
-test("keeps the video-audited lead strings and the single sticky live monitor", async () => {
+test("keeps the video-audited lead strings and the single live monitor", async () => {
   const trainer = await readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8");
 
   assert.match(trainer, /const holdString: StringNumber = variation === "low" \? 3 : 2/);

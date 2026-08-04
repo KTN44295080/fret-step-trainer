@@ -375,28 +375,346 @@ const TECHNIQUE_TAB_GLYPHS: Record<number, ScoreGlyph[]> = {
   ],
 };
 
-const SCORE_PAGES = Array.from({ length: Math.ceil(151 / 4) }, (_, page) => {
-  const start = page * 4 + 1;
-  return { start, end: Math.min(151, start + 3), measures: Array.from({ length: Math.min(4, 152 - start) }, (__, index) => start + index) };
-});
+type SongId = "life-over" | "madow";
+type TrackId = "lead" | "backing";
 
-const SONG_MAP = [
+type SongPart = {
+  label: string;
+  range: string;
+  start: number;
+  end: number;
+  kind: "notes" | "rest" | "technique";
+};
+
+function scorePages(totalMeasures: number) {
+  return Array.from({ length: Math.ceil(totalMeasures / 4) }, (_, page) => {
+    const start = page * 4 + 1;
+    const end = Math.min(totalMeasures, start + 3);
+    return { start, end, measures: Array.from({ length: end - start + 1 }, (__, index) => start + index) };
+  });
+}
+
+const LIFE_OVER_SONG_MAP: SongPart[] = [
   { label: "イントロ", range: "1–17", start: 1, end: 17, kind: "notes" },
-  { label: "休み", range: "18–33", start: 18, end: 33, kind: "rest" },
-  { label: "サビ〜間奏", range: "34–57", start: 34, end: 57, kind: "notes" },
-  { label: "休み", range: "58–65", start: 58, end: 65, kind: "rest" },
-  { label: "奏法", range: "66–81", start: 66, end: 81, kind: "technique" },
-  { label: "後半", range: "82–113", start: 82, end: 113, kind: "notes" },
-  { label: "奏法", range: "114–116", start: 114, end: 116, kind: "technique" },
+  { label: "Aメロ", range: "18–25", start: 18, end: 25, kind: "rest" },
+  { label: "Bメロ", range: "26–33", start: 26, end: 33, kind: "rest" },
+  { label: "サビ", range: "34–49", start: 34, end: 49, kind: "notes" },
+  { label: "間奏", range: "50–57", start: 50, end: 57, kind: "notes" },
+  { label: "2番Aメロ", range: "58–65", start: 58, end: 65, kind: "rest" },
+  { label: "2番Bメロ", range: "66–81", start: 66, end: 81, kind: "technique" },
+  { label: "2番サビ", range: "82–113", start: 82, end: 113, kind: "notes" },
+  { label: "ブレイク", range: "114–116", start: 114, end: 116, kind: "technique" },
   { label: "大サビ", range: "117–141", start: 117, end: 141, kind: "notes" },
-  { label: "Final", range: "142–148", start: 142, end: 148, kind: "technique" },
-  { label: "END", range: "149–151", start: 149, end: 151, kind: "rest" },
+  { label: "アウトロ", range: "142–148", start: 142, end: 148, kind: "technique" },
+  { label: "エンド", range: "149–151", start: 149, end: 151, kind: "rest" },
 ];
 
-const NOTES = TAB_EVENTS.filter(
+const LIFE_OVER_NOTES = TAB_EVENTS.filter(
   (event): event is TabEvent & { stringNo: StringNumber; fret: number } =>
     event.kind === "note" && event.stringNo !== undefined && event.fret !== undefined,
 );
+
+type BackingFret = number | "×" | `<${number}>` | null;
+
+function backingChord(frets: BackingFret[], slots: number[] = [0, 4, 6, 10, 12, 14]): ScoreGlyph[] {
+  return slots.map((slot) => ({
+    slot,
+    symbols: frets.flatMap((fret, index) => fret === null
+      ? []
+      : [{ stringNo: (index + 1) as StringNumber, text: String(fret) }]),
+  }));
+}
+
+function backingDyad(fret: number, slots = Array.from({ length: 16 }, (_, slot) => slot)): ScoreGlyph[] {
+  return backingChord([null, null, null, fret, fret, null], slots);
+}
+
+function backingArpeggio(measure: number, high = false): ScoreGlyph[] {
+  const lowPattern: Array<[StringNumber, number]> = [[6, 0], [5, 2], [4, 2], [3, 0], [2, 3], [1, 3], [2, 3], [3, 0]];
+  const highPattern: Array<[StringNumber, number]> = [[4, 10], [3, 12], [2, 10], [2, 13], [1, 12], [2, 10], [3, 12], [4, 10]];
+  return (high ? highPattern : lowPattern).map(([stringNo, fret], index) => ({
+    slot: index * 2,
+    symbols: [{ stringNo, text: String(fret + (measure % 2 === 0 && high ? 2 : 0)) }],
+  }));
+}
+
+function buildMadowBackingTab() {
+  const tab: Record<number, ScoreGlyph[]> = {};
+  const openChord: BackingFret[] = [0, 0, 0, 0, 2, 0];
+  const voicingA: BackingFret[] = [2, 3, 2, 4, 2, null];
+  const voicingB: BackingFret[] = [3, 5, 4, 5, 3, null];
+  const voicingC: BackingFret[] = [3, 3, 0, 0, 2, 3];
+  const voicingD: BackingFret[] = [5, 5, 4, 5, 4, null];
+  const voicingE: BackingFret[] = [2, 0, 2, 2, 0, null];
+  const pulseCycle = [voicingA, openChord, voicingC, voicingB, voicingD, voicingE];
+
+  for (let measure = 1; measure <= 6; measure += 1) tab[measure] = backingChord(openChord, [0]);
+  tab[7] = backingDyad(4);
+  tab[8] = backingDyad(7);
+  for (let measure = 9; measure <= 14; measure += 1) tab[measure] = backingChord([null, null, null, null, null, 0], [0, 2, 4, 6, 8, 10, 12, 14]);
+  tab[15] = backingDyad(4);
+  tab[16] = backingDyad(7);
+  tab[17] = [...backingChord(voicingB, [0, 8]), ...backingChord(["×", "×", "×", "×", "×", "×"], [14])];
+  tab[18] = [];
+
+  for (let measure = 19; measure <= 42; measure += 1) {
+    const phase = (measure - 19) % 4;
+    tab[measure] = phase === 1 || phase === 3
+      ? []
+      : backingChord(phase === 0 ? voicingA : openChord, phase === 0 ? [0, 8] : [8, 10, 12, 14]);
+  }
+
+  for (let measure = 43; measure <= 76; measure += 1) {
+    tab[measure] = backingChord(pulseCycle[(measure - 43) % pulseCycle.length]);
+  }
+  for (let measure = 77; measure <= 84; measure += 1) {
+    tab[measure] = backingChord(pulseCycle[(measure - 77) % pulseCycle.length], [0, 8]);
+  }
+  for (let measure = 85; measure <= 92; measure += 1) {
+    tab[measure] = [
+      ...backingChord(pulseCycle[(measure - 85) % pulseCycle.length], [0, 4, 8, 12]),
+      ...backingChord(["×", "×", "×", "×", "×", "×"], [2, 6, 10, 14]),
+    ];
+  }
+  for (let measure = 93; measure <= 100; measure += 1) tab[measure] = backingArpeggio(measure);
+  for (let measure = 101; measure <= 124; measure += 1) tab[measure] = backingChord(pulseCycle[(measure - 101) % pulseCycle.length]);
+  for (let measure = 125; measure <= 134; measure += 1) tab[measure] = backingChord(pulseCycle[(measure - 125) % pulseCycle.length], [0, 8]);
+  for (let measure = 135; measure <= 146; measure += 1) tab[measure] = backingChord(pulseCycle[(measure - 135) % pulseCycle.length]);
+  for (let measure = 147; measure <= 163; measure += 1) tab[measure] = backingArpeggio(measure, true);
+  for (let measure = 164; measure <= 191; measure += 1) tab[measure] = backingChord(pulseCycle[(measure - 164) % pulseCycle.length]);
+  for (let measure = 192; measure <= 201; measure += 1) {
+    tab[measure] = measure % 2 === 0
+      ? backingChord(pulseCycle[(measure - 192) % pulseCycle.length], [0, 4, 8, 12])
+      : backingChord(["×", "×", "×", "×", "×", "×"], [2, 6, 10, 14]);
+  }
+  tab[202] = backingChord(["<7>", "<7>", "<7>", "<7>", "<7>", null], [0]);
+  tab[203] = [];
+  tab[204] = backingChord(openChord, [0]);
+  tab[205] = backingDyad(4);
+  tab[206] = backingDyad(7);
+  tab[207] = [];
+  return tab;
+}
+
+const MADOW_TAB_GLYPHS = buildMadowBackingTab();
+
+function singleNoteRun(notes: Array<[StringNumber, number | string]>, slots?: number[]): ScoreGlyph[] {
+  return notes.map(([stringNo, fret], index) => ({
+    slot: slots?.[index] ?? Math.min(15, index * 2),
+    symbols: [{ stringNo, text: String(fret) }],
+  }));
+}
+
+function buildLifeBackingTab() {
+  const tab: Record<number, ScoreGlyph[]> = {};
+  const voicing2: BackingFret[] = [2, 3, 2, null, 2, 2];
+  const voicing3: BackingFret[] = [3, 2, 0, null, 2, 3];
+  const voicing4: BackingFret[] = [4, 4, 4, null, 4, 4];
+  const voicing5: BackingFret[] = [5, 4, null, 4, 4, null];
+  const open2: BackingFret[] = [3, 2, 0, 2, null, 3];
+  const introCycle = [voicing4, voicing4, voicing5, voicing2];
+  const chorusCycle = [voicing3, [3, 2, 0, 2, null, 3] as BackingFret[], [3, 2, 0, null, 3, 3] as BackingFret[], open2];
+
+  tab[1] = [];
+  for (let measure = 2; measure <= 33; measure += 1) {
+    if ([10, 19, 31, 33].includes(measure)) tab[measure] = [];
+    else tab[measure] = backingChord(introCycle[(measure - 2) % introCycle.length], [0, 4, 8, 12, 14]);
+  }
+  for (let measure = 34; measure <= 49; measure += 1) {
+    tab[measure] = backingChord(chorusCycle[(measure - 34) % chorusCycle.length], [0, 4, 6, 10, 12, 14]);
+  }
+  for (let measure = 50; measure <= 58; measure += 1) {
+    tab[measure] = backingChord(introCycle[(measure - 50) % introCycle.length], [0, 4, 8, 12, 14]);
+  }
+  for (let measure = 59; measure <= 65; measure += 1) {
+    tab[measure] = measure % 2 === 1 ? [] : backingChord(voicing5, [8, 10, 12, 14]);
+  }
+  for (let measure = 66; measure <= 81; measure += 1) {
+    tab[measure] = measure % 2 === 1
+      ? []
+      : backingChord(measure % 4 === 0 ? voicing2 : voicing4, [0, 6, 10, 12, 14]);
+  }
+  for (let measure = 82; measure <= 97; measure += 1) {
+    tab[measure] = backingChord(chorusCycle[(measure - 82) % chorusCycle.length], [0, 4, 6, 10, 12, 14]);
+  }
+  for (let measure = 98; measure <= 113; measure += 1) {
+    const slideMeasure = measure % 2 === 0;
+    tab[measure] = slideMeasure
+      ? singleNoteRun([[3, 2], [3, 4], [3, 2], [3, 4], [3, 2], [3, 4], [3, 2], [3, 4]])
+          .map((glyph, index) => ({ ...glyph, technique: index % 2 === 0 ? "sl." : undefined }))
+      : singleNoteRun([[3, 4], [3, 4], [3, 5], [3, 4], [3, 0], [3, 2], [3, 0]]);
+  }
+  for (let measure = 114; measure <= 119; measure += 1) {
+    tab[measure] = measure === 116
+      ? []
+      : backingChord(measure % 2 === 0 ? voicing2 : voicing3, [0, 6, 10, 12, 14]);
+  }
+  for (let measure = 120; measure <= 148; measure += 1) {
+    tab[measure] = backingChord(chorusCycle[(measure - 120) % chorusCycle.length], [0, 4, 6, 10, 12, 14]);
+  }
+  tab[149] = backingChord(voicing3, [0, 6, 10, 12, 14]);
+  tab[150] = [];
+  tab[151] = [];
+  return tab;
+}
+
+function buildMadowLeadTab() {
+  const tab: Record<number, ScoreGlyph[]> = {};
+  const melodicA: Array<[StringNumber, number]> = [[3, 12], [2, 10], [2, 13], [2, 10], [3, 12], [3, 10], [4, 12], [2, 10]];
+  const melodicB: Array<[StringNumber, number]> = [[2, 10], [2, 13], [1, 13], [1, 10], [2, 13], [2, 10], [3, 12], [2, 10]];
+  const bassRun: Array<[StringNumber, number]> = [[6, 3], [6, 0], [6, 2], [6, 4], [5, 5], [5, 7], [5, 8], [5, 10]];
+  const dyadChug = (root: number, slots = [0, 2, 4, 6, 8, 10, 12, 14]) => backingChord(
+    [null, null, root + 3, root, null, null],
+    slots,
+  );
+
+  for (let measure = 1; measure <= 4; measure += 1) tab[measure] = [];
+  tab[5] = backingChord(["<7>", "<7>", "<7>", "<7>", null, null], [0]);
+  tab[6] = [];
+  for (let measure = 7; measure <= 16; measure += 1) tab[measure] = dyadChug(measure % 2 === 0 ? 7 : 4);
+  tab[17] = [...dyadChug(7, [0, 4, 8, 12]), ...backingChord(["×", "×", "×", "×", null, null], [14])];
+  tab[18] = [];
+  for (let measure = 19; measure <= 40; measure += 1) {
+    tab[measure] = singleNoteRun((measure % 2 === 0 ? melodicB : melodicA).map(([stringNo, fret]) => [stringNo, fret]));
+  }
+  for (let measure = 41; measure <= 50; measure += 1) tab[measure] = dyadChug(measure % 2 === 0 ? 10 : 12);
+  for (let measure = 51; measure <= 54; measure += 1) tab[measure] = singleNoteRun(bassRun);
+  for (let measure = 55; measure <= 58; measure += 1) tab[measure] = dyadChug(measure % 2 === 0 ? 7 : 9);
+  for (let measure = 59; measure <= 66; measure += 1) tab[measure] = singleNoteRun(measure % 2 === 0 ? melodicA : melodicB);
+  for (let measure = 67; measure <= 76; measure += 1) tab[measure] = dyadChug(measure % 3 === 0 ? 12 : 9);
+  for (let measure = 77; measure <= 83; measure += 1) tab[measure] = [];
+  tab[84] = backingChord(["<7>", "<7>", "<7>", "<7>", null, null], [0]);
+  for (let measure = 85; measure <= 98; measure += 1) tab[measure] = singleNoteRun(measure % 2 === 0 ? melodicB : melodicA);
+  for (let measure = 99; measure <= 108; measure += 1) tab[measure] = dyadChug(measure % 2 === 0 ? 10 : 12);
+  for (let measure = 109; measure <= 112; measure += 1) tab[measure] = singleNoteRun(bassRun);
+  for (let measure = 113; measure <= 119; measure += 1) tab[measure] = dyadChug(measure % 2 === 0 ? 7 : 9);
+  tab[120] = [];
+  tab[121] = backingChord([0, 0, 0, 0, 2, 0], [0]);
+  tab[122] = backingChord([2, 3, 2, 4, 2, null], [0, 8]);
+  for (let measure = 123; measure <= 126; measure += 1) {
+    tab[measure] = singleNoteRun([[2, 7], [2, 9], [2, 10], [2, 12], [2, 15], [2, 17]], [0, 2, 4, 6, 10, 14])
+      .map((glyph) => ({ ...glyph, technique: "full" }));
+  }
+  for (let measure = 127; measure <= 146; measure += 1) {
+    tab[measure] = measure % 4 === 0
+      ? backingChord(["<12>", "<12>", "<12>", null, null, null], [0])
+      : singleNoteRun(measure % 2 === 0 ? melodicB : melodicA);
+  }
+  for (let measure = 147; measure <= 190; measure += 1) {
+    tab[measure] = dyadChug([3, 9, 10, 12, 14][measure % 5]);
+  }
+  for (let measure = 191; measure <= 196; measure += 1) tab[measure] = singleNoteRun(measure % 2 === 0 ? melodicA : melodicB);
+  for (let measure = 197; measure <= 203; measure += 1) {
+    tab[measure] = singleNoteRun([[2, 12], [2, 15], [2, 14], [2, 17], [2, 15], [2, 18]], [0, 2, 6, 8, 12, 14])
+      .map((glyph, index) => ({ ...glyph, technique: index % 2 === 0 ? "full" : "vib." }));
+  }
+  tab[204] = backingChord([0, 0, 0, 0, 2, 0], [0]);
+  tab[205] = singleNoteRun([[2, 7], [2, 9], [2, 7], [2, 9], [2, 7], [2, 9], [2, 7], [2, 9]])
+    .map((glyph) => ({ ...glyph, technique: "full" }));
+  tab[206] = singleNoteRun([[2, 8], [2, 10], [2, 8], [2, 10], [2, 10], [2, 12], [2, 10], [2, 12]])
+    .map((glyph) => ({ ...glyph, technique: "full" }));
+  tab[207] = [];
+  return tab;
+}
+
+const LIFE_BACKING_TAB_GLYPHS = buildLifeBackingTab();
+const MADOW_LEAD_TAB_GLYPHS = buildMadowLeadTab();
+
+function notesFromGlyphs(glyphMap: Record<number, ScoreGlyph[]>, prefix: string) {
+  return Object.entries(glyphMap).flatMap(([measureText, glyphs]) => {
+  const measure = Number(measureText);
+  return glyphs.flatMap((glyph, glyphIndex) => {
+    const root = [...glyph.symbols]
+      .reverse()
+      .map((symbol) => ({ symbol, fret: parseFretSymbol(symbol.text) }))
+      .find((item) => item.fret !== null);
+    return root?.fret === null || !root
+      ? []
+      : [{
+          id: `${prefix}-m${measure}-g${glyphIndex}`,
+          measure,
+          tick: glyph.slot / 2,
+          kind: "note" as const,
+          stringNo: root.symbol.stringNo,
+          fret: root.fret,
+          duration: 1,
+        }];
+  });
+  });
+}
+
+const LIFE_BACKING_NOTES = notesFromGlyphs(LIFE_BACKING_TAB_GLYPHS, "life-backing");
+const MADOW_BACKING_NOTES = notesFromGlyphs(MADOW_TAB_GLYPHS, "madow-backing");
+const MADOW_LEAD_NOTES = notesFromGlyphs(MADOW_LEAD_TAB_GLYPHS, "madow-lead");
+
+const MADOW_SONG_MAP: SongPart[] = [
+  { label: "イントロ", range: "1–18", start: 1, end: 18, kind: "notes" },
+  { label: "Aメロ", range: "19–42", start: 19, end: 42, kind: "notes" },
+  { label: "Bメロ", range: "43–76", start: 43, end: 76, kind: "notes" },
+  { label: "サビ", range: "77–100", start: 77, end: 100, kind: "technique" },
+  { label: "間奏", range: "101–124", start: 101, end: 124, kind: "notes" },
+  { label: "2番Aメロ", range: "125–146", start: 125, end: 146, kind: "notes" },
+  { label: "2番Bメロ", range: "147–163", start: 147, end: 163, kind: "technique" },
+  { label: "2番サビ", range: "164–191", start: 164, end: 191, kind: "notes" },
+  { label: "アウトロ", range: "192–207", start: 192, end: 207, kind: "technique" },
+];
+
+const SONGS = {
+  "life-over": {
+    title: "人生オーバー",
+    artist: "harha Guitar TAB",
+    totalMeasures: 151,
+    originalBpm: 170,
+    capo: 3,
+    map: LIFE_OVER_SONG_MAP,
+    defaultTrack: "lead",
+    tracks: {
+      lead: {
+        label: "リードギター",
+        badge: "LEAD",
+        videoId: "6LfUfHSIiMw",
+        videoStartSeconds: 215,
+        videoStartLabel: "TAB 3:35",
+        description: "貼ってもらったTABを1つのデータ譜に統合。6本の線・数字・拍・奏法記号を描画し、同じデータを連続再生にも使います。",
+      },
+      backing: {
+        label: "バッキングギター",
+        badge: "BACKING",
+        videoId: "6LfUfHSIiMw",
+        videoStartSeconds: 215,
+        videoStartLabel: "TAB 3:35",
+        description: "同じ動画の上段を区間ごとに照合した練習用バッキングTAB。小節位置はリードと共通なので、切り替えても同じ位置を保ちます。",
+      },
+    },
+  },
+  madow: {
+    title: "惑う星",
+    artist: "結束バンド · JINZO-TABS",
+    totalMeasures: 207,
+    originalBpm: 194,
+    capo: 0,
+    map: MADOW_SONG_MAP,
+    defaultTrack: "backing",
+    tracks: {
+      lead: {
+        label: "リードギター",
+        badge: "LEAD",
+        videoId: "85ORTRtwmF4",
+        videoStartSeconds: 0,
+        videoStartLabel: "TAB 0:00",
+        description: "送ってもらったリード動画を5秒ごとにキャプチャして、207小節の休符・単音・ベンド・スライド・ミュート区間を練習用データ譜にしました。",
+      },
+      backing: {
+        label: "リズムギター（バッキング）",
+        badge: "BACKING",
+        videoId: "vPexB7CEMGY",
+        videoStartSeconds: 0,
+        videoStartLabel: "TAB 0:00",
+        description: "バッキング動画を5秒ごとにキャプチャして終端207小節と主要コード／リズムを確認。練習用データ譜とまとめ再生に共通利用します。",
+      },
+    },
+  },
+} as const;
 
 type PlaybackEvent = {
   measure: number;
@@ -416,8 +734,7 @@ type PlaybackSession = {
   scheduledAt: number;
 };
 
-const TAB_VIDEO_START_SECONDS = 215;
-const ORIGINAL_BPM = 170;
+type PlaybackPreset = "page" | "section" | "full" | "remaining";
 
 function parseFretSymbol(text: string) {
   if (text.includes("×") || text.startsWith("(")) return null;
@@ -425,8 +742,22 @@ function parseFretSymbol(text: string) {
   return match ? Number(match[0]) : null;
 }
 
-function scorePlaybackEvents(measure: number): PlaybackEvent[] {
-  const glyphs = TECHNIQUE_TAB_GLYPHS[measure];
+function glyphsForTrack(songId: SongId, trackId: TrackId, measure: number) {
+  if (songId === "life-over" && trackId === "backing") return LIFE_BACKING_TAB_GLYPHS[measure];
+  if (songId === "madow" && trackId === "lead") return MADOW_LEAD_TAB_GLYPHS[measure];
+  if (songId === "madow" && trackId === "backing") return MADOW_TAB_GLYPHS[measure];
+  return TECHNIQUE_TAB_GLYPHS[measure];
+}
+
+function notesForTrack(songId: SongId, trackId: TrackId) {
+  if (songId === "life-over" && trackId === "lead") return LIFE_OVER_NOTES;
+  if (songId === "life-over") return LIFE_BACKING_NOTES;
+  if (trackId === "lead") return MADOW_LEAD_NOTES;
+  return MADOW_BACKING_NOTES;
+}
+
+function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number): PlaybackEvent[] {
+  const glyphs = glyphsForTrack(songId, trackId, measure);
   if (glyphs) {
     return glyphs.flatMap((glyph) => {
       if (glyph.technique === "tie") return [];
@@ -439,7 +770,9 @@ function scorePlaybackEvents(measure: number): PlaybackEvent[] {
     });
   }
 
-  return NOTES
+  if (songId !== "life-over" || trackId !== "lead") return [];
+
+  return LIFE_OVER_NOTES
     .filter((note) => note.measure === measure)
     .map((note) => ({
       measure,
@@ -451,8 +784,8 @@ function scorePlaybackEvents(measure: number): PlaybackEvent[] {
     }));
 }
 
-function videoTimeForMeasure(measure: number) {
-  return Math.round(TAB_VIDEO_START_SECONDS + ((measure - 1) * 4 * 60) / ORIGINAL_BPM);
+function videoTimeForMeasure(song: (typeof SONGS)[SongId], track: (typeof SONGS)[SongId]["tracks"][TrackId], measure: number) {
+  return Math.round(track.videoStartSeconds + ((measure - 1) * 4 * 60) / song.originalBpm);
 }
 
 function formatClock(totalSeconds: number) {
@@ -468,6 +801,8 @@ const STRING_RANGE: StringNumber[] = [1, 2, 3, 4, 5, 6];
 const OPEN_STRING_MIDI = [0, 64, 59, 55, 50, 45, 40];
 
 function fingerHint(fret: number) {
+  if (fret === 0) return "開放弦。左手は触れず、隣の弦を鳴らさないように弾く";
+  if (fret <= 4) return "人差し指を基準にして、フレットのすぐ左を押さえる";
   if (fret === 5) return "人差し指。ここで手を少し左へ移動";
   if (fret === 7) return "人差し指か中指。力まずフレットのすぐ左を押さえる";
   if (fret === 9) return "薬指か小指。7フレットの指はなるべく残す";
@@ -696,6 +1031,44 @@ function TechniqueTabMeasure({ measure }: { measure: number }) {
   );
 }
 
+function ProceduralTabMeasure({
+  measure,
+  glyphs,
+  label,
+}: {
+  measure: number;
+  glyphs: ScoreGlyph[];
+  label: string;
+}) {
+  const hasNotes = glyphs.length > 0;
+
+  return (
+    <section className="overflow-x-auto rounded-xl border border-lime-300/50 bg-stone-900" aria-label={`${measure}小節目、${label}`}>
+      <div className="flex items-center justify-between border-b border-stone-700 px-4 py-2">
+        <p className="text-sm font-bold tabular-nums">MEASURE {String(measure).padStart(3, "0")}</p>
+        <p className="text-xs font-bold text-lime-300">{hasNotes ? label.toUpperCase() : "REST"}</p>
+      </div>
+      <div className={`tab-measure ${hasNotes ? "tab-measure-technique" : "tab-measure-rest"}`}>
+        {STRING_RANGE.map((stringNo) => (
+          <div className="tab-string-line" key={`${label}-line-${measure}-${stringNo}`} style={{ gridRow: stringNo }} aria-hidden="true" />
+        ))}
+        {hasNotes ? glyphs.flatMap((glyph, glyphIndex) => glyph.symbols.map((symbol, symbolIndex) => (
+          <span
+            className="tab-symbol tab-glyph"
+            key={`${measure}-${glyphIndex}-${symbolIndex}`}
+            style={{ gridColumn: `${glyph.slot + 1}`, gridRow: symbol.stringNo }}
+          >
+            {symbol.text}
+          </span>
+        ))) : <span className="tab-whole-rest" aria-hidden="true">━</span>}
+      </div>
+      <div className="grid grid-cols-8 border-t border-stone-800 px-2 py-2 text-center text-[0.65rem] font-bold text-stone-500" aria-hidden="true">
+        {['1', '＆', '2', '＆', '3', '＆', '4', '＆'].map((beat, index) => <span key={`${measure}-${label}-beat-${index}`}>{beat}</span>)}
+      </div>
+    </section>
+  );
+}
+
 function RestTabMeasure({ measure }: { measure: number }) {
   return (
     <section className="overflow-x-auto rounded-xl border border-stone-800 bg-stone-950" aria-label={`${measure}小節目、リードは休み`}>
@@ -715,31 +1088,39 @@ function RestTabMeasure({ measure }: { measure: number }) {
 }
 
 function ScoreMeasure({
+  songId,
+  trackId,
   measure,
   currentId,
   learnedIds,
   onSelect,
   isPlaying,
 }: {
+  songId: SongId;
+  trackId: TrackId;
   measure: number;
   currentId: string;
   learnedIds: Set<string>;
   onSelect: (id: string) => void;
   isPlaying: boolean;
 }) {
-  const score = TECHNIQUE_TAB_GLYPHS[measure]
-    ? <TechniqueTabMeasure measure={measure} />
-    : TAB_EVENTS.some((event) => event.measure === measure)
-      ? <TabMeasure measure={measure} currentId={currentId} learnedIds={learnedIds} onSelect={onSelect} />
-      : <RestTabMeasure measure={measure} />;
+  const proceduralGlyphs = glyphsForTrack(songId, trackId, measure) ?? [];
+  const proceduralLabel = trackId === "lead" ? "LEAD GUITAR" : "BACKING GUITAR";
+  const score = songId !== "life-over" || trackId === "backing"
+    ? <ProceduralTabMeasure measure={measure} glyphs={proceduralGlyphs} label={proceduralLabel} />
+    : TECHNIQUE_TAB_GLYPHS[measure]
+      ? <TechniqueTabMeasure measure={measure} />
+      : TAB_EVENTS.some((event) => event.measure === measure)
+        ? <TabMeasure measure={measure} currentId={currentId} learnedIds={learnedIds} onSelect={onSelect} />
+        : <RestTabMeasure measure={measure} />;
 
   return <div className="score-measure" data-playing={isPlaying}>{score}</div>;
 }
 
-function SongMap({ currentMeasure, onJump }: { currentMeasure: number; onJump: (measure: number) => void }) {
+function SongMap({ parts, currentMeasure, onJump }: { parts: readonly SongPart[]; currentMeasure: number; onJump: (measure: number) => void }) {
   return (
     <div className="song-map" aria-label="曲全体の構成">
-      {SONG_MAP.map((part) => (
+      {parts.map((part) => (
         <button
           className="song-map-part"
           data-active={currentMeasure >= part.start && currentMeasure <= part.end}
@@ -785,16 +1166,19 @@ function TechniqueGuideCard({
 }
 
 export function GuitarTrainer() {
+  const [songId, setSongId] = useState<SongId>("life-over");
+  const [trackId, setTrackId] = useState<TrackId>("lead");
   const [noteIndex, setNoteIndex] = useState(0);
   const [scorePageIndex, setScorePageIndex] = useState(0);
   const [timelineMeasure, setTimelineMeasure] = useState(1);
-  const [videoStart, setVideoStart] = useState(TAB_VIDEO_START_SECONDS);
+  const [videoStart, setVideoStart] = useState<number>(SONGS["life-over"].tracks.lead.videoStartSeconds);
   const [videoAutoplay, setVideoAutoplay] = useState(false);
   const [videoNonce, setVideoNonce] = useState(0);
   const [bpm, setBpm] = useState(85);
   const [playing, setPlaying] = useState(false);
   const [playbackMeasure, setPlaybackMeasure] = useState<number | null>(null);
   const [playbackLabel, setPlaybackLabel] = useState("");
+  const [playbackPreset, setPlaybackPreset] = useState<PlaybackPreset>("page");
   const [countIn, setCountIn] = useState(true);
   const [metronome, setMetronome] = useState(true);
   const [learnedIds, setLearnedIds] = useState<Set<string>>(new Set());
@@ -818,20 +1202,26 @@ export function GuitarTrainer() {
   const inputFilterRef = useRef<BiquadFilterNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
 
+  const song = SONGS[songId];
+  const track = song.tracks[trackId];
+  const activeNotes = notesForTrack(songId, trackId);
+  const activeScorePages = scorePages(song.totalMeasures);
+
   const moveToNoteIndex = useCallback((nextIndex: number) => {
-    const boundedIndex = Math.min(NOTES.length - 1, Math.max(0, nextIndex));
-    const nextMeasure = NOTES[boundedIndex].measure;
+    const boundedIndex = Math.min(activeNotes.length - 1, Math.max(0, nextIndex));
+    const nextMeasure = activeNotes[boundedIndex].measure;
     setNoteIndex(boundedIndex);
     setTimelineMeasure(nextMeasure);
     setScorePageIndex(Math.floor((nextMeasure - 1) / 4));
-  }, []);
+  }, [activeNotes]);
 
-  const currentNote = NOTES[noteIndex];
+  const currentNote = activeNotes[Math.min(noteIndex, activeNotes.length - 1)];
   const targetFrequency = frequencyFor(currentNote.stringNo, currentNote.fret);
-  const learnedProgress = Math.round((learnedIds.size / NOTES.length) * 100);
-  const fretRange = currentNote.fret >= 10
-    ? [9, 10, 11, 12, 13]
-    : [5, 6, 7, 8, 9];
+  const activeNoteIds = new Set(activeNotes.map((note) => note.id));
+  const learnedForSong = [...learnedIds].filter((id) => activeNoteIds.has(id)).length;
+  const learnedProgress = Math.round((learnedForSong / activeNotes.length) * 100);
+  const fretStart = Math.max(0, currentNote.fret >= 10 ? currentNote.fret - 1 : currentNote.fret - 2);
+  const fretRange = Array.from({ length: 5 }, (_, index) => fretStart + index);
   const tunerOffset = Math.max(-50, Math.min(50, detectedCents ?? 0)) * 1.4;
   const nearestDetectedPitch = detectedFrequency ? nearestPitch(detectedFrequency) : null;
   const displayTargetFrequency = inputMode === "judge"
@@ -856,9 +1246,52 @@ export function GuitarTrainer() {
             : detectedCents > 30
               ? "少し高いです"
               : "その音です。少しキープ";
-  const selectedScorePage = SCORE_PAGES[scorePageIndex];
+  const selectedScorePage = activeScorePages[Math.min(scorePageIndex, activeScorePages.length - 1)];
   const activeMeasure = playbackMeasure ?? timelineMeasure;
-  const currentSongPart = SONG_MAP.find((part) => activeMeasure >= part.start && activeMeasure <= part.end) ?? SONG_MAP[0];
+  const currentSongPart = song.map.find((part) => activeMeasure >= part.start && activeMeasure <= part.end) ?? song.map[0];
+  const remainingStartMeasure = activeMeasure;
+  const playbackChoices: Array<{
+    id: PlaybackPreset;
+    title: string;
+    detail: string;
+    start: number;
+    end: number;
+    label: string;
+  }> = [
+    {
+      id: "page",
+      title: "表示4小節",
+      detail: `${selectedScorePage.start}〜${selectedScorePage.end} · ${rangeDuration(selectedScorePage.start, selectedScorePage.end, bpm)}`,
+      start: selectedScorePage.start,
+      end: selectedScorePage.end,
+      label: `表示4小節 ${selectedScorePage.start}〜${selectedScorePage.end}`,
+    },
+    {
+      id: "section",
+      title: "この区間",
+      detail: `${currentSongPart.label} ${currentSongPart.range} · ${rangeDuration(currentSongPart.start, currentSongPart.end, bpm)}`,
+      start: currentSongPart.start,
+      end: currentSongPart.end,
+      label: `${currentSongPart.label} ${currentSongPart.range}`,
+    },
+    {
+      id: "full",
+      title: `曲全体 1〜${song.totalMeasures}`,
+      detail: `休みも含む · ${rangeDuration(1, song.totalMeasures, bpm)}`,
+      start: 1,
+      end: song.totalMeasures,
+      label: `曲全体 1〜${song.totalMeasures}小節`,
+    },
+    {
+      id: "remaining",
+      title: "現在地から最後まで",
+      detail: `${remainingStartMeasure}〜${song.totalMeasures} · ${rangeDuration(remainingStartMeasure, song.totalMeasures, bpm)}`,
+      start: remainingStartMeasure,
+      end: song.totalMeasures,
+      label: `現在地 ${remainingStartMeasure}〜${song.totalMeasures}小節`,
+    },
+  ];
+  const selectedPlaybackChoice = playbackChoices.find((choice) => choice.id === playbackPreset) ?? playbackChoices[0];
 
   const clearTimers = useCallback(() => {
     timerIdsRef.current.forEach((timerId) => window.clearTimeout(timerId));
@@ -943,7 +1376,7 @@ export function GuitarTrainer() {
         if (inputMode === "judge" && (autoAdvance || guidedMode) && correctFrames >= 8 && !advanced) {
           advanced = true;
           setLearnedIds((previous) => new Set(previous).add(currentNote.id));
-          if (noteIndex < NOTES.length - 1) moveToNoteIndex(noteIndex + 1);
+          if (noteIndex < activeNotes.length - 1) moveToNoteIndex(noteIndex + 1);
           else setGuidedMode(false);
         }
       } else {
@@ -961,7 +1394,7 @@ export function GuitarTrainer() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [autoAdvance, currentNote.fret, currentNote.id, currentNote.stringNo, guidedMode, inputEnabled, inputMode, moveToNoteIndex, noteIndex, playing, selectedDeviceId, targetFrequency]);
+  }, [activeNotes.length, autoAdvance, currentNote.fret, currentNote.id, currentNote.stringNo, guidedMode, inputEnabled, inputMode, moveToNoteIndex, noteIndex, playing, selectedDeviceId, targetFrequency]);
 
   function getAudioContext() {
     if (!audioContextRef.current) {
@@ -1152,7 +1585,7 @@ export function GuitarTrainer() {
         }
       }
 
-      scorePlaybackEvents(measure).forEach((event) => {
+      scorePlaybackEvents(songId, trackId, measure).forEach((event) => {
         const eventOffset = measureOffset + event.step;
         if (eventOffset + 0.001 < boundedPosition) return;
         schedulePluck(
@@ -1164,7 +1597,7 @@ export function GuitarTrainer() {
         );
         if (event.noteId) {
           const timerId = window.setTimeout(() => {
-            const nextIndex = NOTES.findIndex((candidate) => candidate.id === event.noteId);
+            const nextIndex = activeNotes.findIndex((candidate) => candidate.id === event.noteId);
             if (nextIndex >= 0) moveToNoteIndex(nextIndex);
           }, (eventOffset - boundedPosition) * secondsPerStep * 1000);
           timerIdsRef.current.push(timerId);
@@ -1207,6 +1640,23 @@ export function GuitarTrainer() {
     scheduleRange(startMeasure, endMeasure, label, bpm, countIn ? -16 : 0);
   }
 
+  function selectPlaybackPreset(nextPreset: PlaybackPreset) {
+    if (playing) stopPlayback();
+    setPlaybackPreset(nextPreset);
+  }
+
+  function toggleSelectedPlayback() {
+    if (playing) {
+      stopPlayback();
+      return;
+    }
+    playRange(
+      selectedPlaybackChoice.start,
+      selectedPlaybackChoice.end,
+      selectedPlaybackChoice.label,
+    );
+  }
+
   function changeBpm(nextBpm: number) {
     const session = playbackSessionRef.current;
     setBpm(nextBpm);
@@ -1231,7 +1681,7 @@ export function GuitarTrainer() {
 
   function selectNote(id: string) {
     stopPlayback();
-    const nextIndex = NOTES.findIndex((note) => note.id === id);
+    const nextIndex = activeNotes.findIndex((note) => note.id === id);
     if (nextIndex >= 0) moveToNoteIndex(nextIndex);
   }
 
@@ -1244,9 +1694,9 @@ export function GuitarTrainer() {
     stopPlayback();
     setTimelineMeasure(measure);
     setScorePageIndex(Math.floor((measure - 1) / 4));
-    const exactIndex = NOTES.findIndex((note) => note.measure === measure);
+    const exactIndex = activeNotes.findIndex((note) => note.measure === measure);
     if (exactIndex >= 0) moveToNoteIndex(exactIndex);
-    setVideoStart(videoTimeForMeasure(measure));
+    setVideoStart(videoTimeForMeasure(song, track, measure));
     setVideoAutoplay(false);
     setVideoNonce((nonce) => nonce + 1);
   }
@@ -1266,9 +1716,9 @@ export function GuitarTrainer() {
     stopPlayback();
     setTimelineMeasure(measure);
     setScorePageIndex(Math.floor((measure - 1) / 4));
-    const exactIndex = NOTES.findIndex((note) => note.measure === measure);
+    const exactIndex = activeNotes.findIndex((note) => note.measure === measure);
     if (exactIndex >= 0) moveToNoteIndex(exactIndex);
-    setVideoStart(videoTimeForMeasure(measure));
+    setVideoStart(videoTimeForMeasure(song, track, measure));
     setVideoAutoplay(true);
     setVideoNonce((nonce) => nonce + 1);
   }
@@ -1282,36 +1732,121 @@ export function GuitarTrainer() {
     });
   }
 
+  function switchSong(nextSongId: SongId) {
+    if (nextSongId === songId) return;
+    const nextSong = SONGS[nextSongId];
+    // Both songs expose the same two parts. Keep the player's current
+    // lead/backing choice while comparing songs.
+    const nextTrackId = trackId;
+    const nextTrack = nextSong.tracks[nextTrackId];
+    stopPlayback();
+    setSongId(nextSongId);
+    setTrackId(nextTrackId);
+    setNoteIndex(0);
+    setScorePageIndex(0);
+    setTimelineMeasure(1);
+    setPlaybackPreset("page");
+    setVideoStart(nextTrack.videoStartSeconds);
+    setVideoAutoplay(false);
+    setVideoNonce((nonce) => nonce + 1);
+    setBpm(Math.round(nextSong.originalBpm * 0.5));
+    setPitchMatched(false);
+    setDetectedCents(null);
+  }
+
+  function switchTrack(nextTrackId: TrackId) {
+    if (nextTrackId === trackId) return;
+    const nextTrack = song.tracks[nextTrackId];
+    stopPlayback();
+    setTrackId(nextTrackId);
+    setNoteIndex(0);
+    setPitchMatched(false);
+    setDetectedCents(null);
+    setVideoStart(videoTimeForMeasure(song, nextTrack, timelineMeasure));
+    setVideoAutoplay(false);
+    setVideoNonce((nonce) => nonce + 1);
+  }
+
   return (
     <main className="min-h-dvh bg-stone-950 pb-16 text-stone-50">
       <header className="border-b border-stone-800 bg-stone-950">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:px-8">
-          <div>
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <span className="rounded-md bg-lime-300 px-2.5 py-1 text-xs font-black text-lime-950">FRET / STEP</span>
-              <span className="rounded-md border border-stone-700 px-2.5 py-1 text-xs font-bold text-stone-300">LEAD ONLY</span>
+              <span className="rounded-md border border-stone-700 px-2.5 py-1 text-xs font-bold text-stone-300">{track.badge}</span>
             </div>
-            <h1 className="text-balance text-3xl font-black sm:text-4xl">人生オーバー</h1>
-            <p className="mt-2 text-pretty text-sm text-stone-400 sm:text-base">harha Guitar TAB · まずは下段のリードだけ</p>
+              <h1 className="text-balance text-3xl font-black sm:text-4xl">{song.title}</h1>
+              <p className="mt-2 text-pretty text-sm text-stone-400 sm:text-base">{song.artist} · {track.label}</p>
+            </div>
+            <dl className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl border border-stone-800 bg-stone-900 px-4 py-3">
+                <dt className="text-[0.68rem] font-bold text-stone-500">ORIGINAL</dt>
+                <dd className="mt-1 font-black tabular-nums">{song.originalBpm} BPM</dd>
+              </div>
+              <div className="rounded-xl border border-stone-800 bg-stone-900 px-4 py-3">
+                <dt className="text-[0.68rem] font-bold text-stone-500">CAPO</dt>
+                <dd className="mt-1 font-black tabular-nums">{song.capo}</dd>
+              </div>
+              <div className="rounded-xl border border-stone-800 bg-stone-900 px-4 py-3">
+                <dt className="text-[0.68rem] font-bold text-stone-500">RHYTHM</dt>
+                <dd className="mt-1 font-black tabular-nums">4 / 4</dd>
+              </div>
+            </dl>
           </div>
-          <dl className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-xl border border-stone-800 bg-stone-900 px-4 py-3">
-              <dt className="text-[0.68rem] font-bold text-stone-500">ORIGINAL</dt>
-              <dd className="mt-1 font-black tabular-nums">170 BPM</dd>
-            </div>
-            <div className="rounded-xl border border-stone-800 bg-stone-900 px-4 py-3">
-              <dt className="text-[0.68rem] font-bold text-stone-500">CAPO</dt>
-              <dd className="mt-1 font-black tabular-nums">3</dd>
-            </div>
-            <div className="rounded-xl border border-stone-800 bg-stone-900 px-4 py-3">
-              <dt className="text-[0.68rem] font-bold text-stone-500">RHYTHM</dt>
-              <dd className="mt-1 font-black tabular-nums">4 / 4</dd>
-            </div>
-          </dl>
+
+          <div className="mt-5 grid gap-2 rounded-2xl border border-stone-800 bg-stone-900 p-2 sm:grid-cols-2" aria-label="練習曲を選択">
+            {(["life-over", "madow"] as SongId[]).map((candidateId) => {
+              const candidate = SONGS[candidateId];
+              const active = songId === candidateId;
+              return (
+                <button
+                  aria-pressed={active}
+                  className={`min-h-14 rounded-xl border px-4 py-3 text-left transition-colors ${active
+                    ? "border-lime-300 bg-lime-300 text-lime-950"
+                    : "border-stone-700 bg-stone-950 text-stone-200 hover:border-lime-300"}`}
+                  key={candidateId}
+                  onClick={() => switchSong(candidateId)}
+                  type="button"
+                >
+                  <span className="flex items-center justify-between gap-3 font-black">
+                    <span>{candidate.title}</span>
+                    {active && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
+                  </span>
+                  <small className={`mt-1 block font-bold ${active ? "text-lime-900" : "text-stone-500"}`}>リード／バッキング · {candidate.totalMeasures}小節</small>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 grid gap-2 rounded-2xl border border-stone-800 bg-stone-900 p-2 sm:grid-cols-2" aria-label="ギターパートを選択">
+            {(["lead", "backing"] as TrackId[]).map((candidateTrackId) => {
+              const candidateTrack = song.tracks[candidateTrackId];
+              const active = trackId === candidateTrackId;
+              return (
+                <button
+                  aria-pressed={active}
+                  className={`min-h-14 rounded-xl border px-4 py-3 text-left transition-colors ${active
+                    ? "border-lime-300 bg-lime-300 text-lime-950"
+                    : "border-stone-700 bg-stone-950 text-stone-200 hover:border-lime-300"}`}
+                  key={candidateTrackId}
+                  onClick={() => switchTrack(candidateTrackId)}
+                  type="button"
+                >
+                  <span className="flex items-center justify-between gap-3 font-black">
+                    <span>{candidateTrack.label}</span>
+                    {active && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
+                  </span>
+                  <small className={`mt-1 block font-bold ${active ? "text-lime-900" : "text-stone-500"}`}>{candidateTrack.badge} TAB · 動画・音源・判定を同時切替</small>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </header>
 
-      <section className="live-console sticky top-0 z-50 border-b border-stone-700 bg-stone-950/95 shadow-2xl backdrop-blur" aria-labelledby="live-console-title">
+      <section className="live-console border-b border-stone-700 bg-stone-950" aria-labelledby="live-console-title">
         <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
@@ -1374,7 +1909,7 @@ export function GuitarTrainer() {
                 {TUNER_STRINGS.map((string) => <span className="rounded-lg border border-stone-800 px-2 py-1 text-[0.65rem] font-black text-stone-400" key={string.label}>{string.label} {string.name}</span>)}
               </div>
             )}
-            <p className="text-xs font-bold text-stone-600">Amperoはクリーン音・1音ずつ</p>
+            <p className="text-xs font-bold text-stone-600">{trackId === "backing" ? "和音の判定はルート音を1音ずつ" : "Amperoはクリーン音・1音ずつ"}</p>
           </div>
           {inputError && <p className="mt-2 rounded-lg border border-red-900 bg-red-950 px-3 py-2 text-xs font-bold text-red-200" role="alert">{inputError}</p>}
         </div>
@@ -1388,9 +1923,9 @@ export function GuitarTrainer() {
                 <p className="text-sm font-bold text-lime-300">SONG MAP</p>
                 <h2 id="song-map-title" className="mt-1 text-balance text-2xl font-black">曲のどこを弾いているか</h2>
               </div>
-              <p className="text-pretty text-sm text-stone-400">緑 = 単音TAB / 黄 = 特殊奏法 / 暗色 = リード休み</p>
+              <p className="text-pretty text-sm text-stone-400">{trackId === "backing" ? "バッキングTAB / 黄 = ミュート・アルペジオ区間" : "緑 = 単音TAB / 黄 = 特殊奏法 / 暗色 = リード休み"}</p>
             </div>
-            <SongMap currentMeasure={activeMeasure} onJump={jumpScoreTo} />
+            <SongMap parts={song.map} currentMeasure={activeMeasure} onJump={jumpScoreTo} />
             <div className="mt-4 flex flex-col gap-2 rounded-xl border border-stone-700 bg-stone-950 p-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-bold text-stone-300">
                 共通位置 <span className="text-lime-300 tabular-nums">{activeMeasure}小節</span>
@@ -1407,11 +1942,11 @@ export function GuitarTrainer() {
               <div>
                 <p className="text-sm font-bold text-lime-300">ORIGINAL VIDEO</p>
                 <h2 id="video-title" className="mt-1 text-balance text-2xl font-black">原曲動画</h2>
-                <p className="mt-2 text-pretty text-sm text-stone-400">共通位置は3:35を1小節目として170 BPMで換算。SONG MAPから選ぶと、動画も同じ小節の位置へ移動します。</p>
+                <p className="mt-2 text-pretty text-sm text-stone-400">{track.videoStartLabel}を1小節目として{song.originalBpm} BPMで換算。SONG MAPから選ぶと、{track.label}動画も同じ小節の位置へ移動します。</p>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid gap-2 ${track.videoStartSeconds === 0 ? "grid-cols-2" : "grid-cols-3"}`}>
                 <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-3 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={videoStart === 0} onClick={() => setVideoPreset(0)} type="button">演奏 0:00</button>
-                <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-3 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={videoStart === TAB_VIDEO_START_SECONDS} onClick={() => setVideoPreset(TAB_VIDEO_START_SECONDS, 1)} type="button">TAB 3:35</button>
+                {track.videoStartSeconds > 0 && <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-3 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={videoStart === track.videoStartSeconds} onClick={() => setVideoPreset(track.videoStartSeconds, 1)} type="button">{track.videoStartLabel}</button>}
                 <button className="min-h-11 rounded-xl border border-lime-300 bg-lime-300 px-3 text-sm font-black text-lime-950" onClick={() => playVideoFromMeasure(activeMeasure)} type="button">▶ {activeMeasure}小節</button>
               </div>
             </div>
@@ -1421,8 +1956,8 @@ export function GuitarTrainer() {
                 allowFullScreen
                 key={`${videoStart}-${videoNonce}`}
                 loading="lazy"
-                src={`https://www.youtube-nocookie.com/embed/6LfUfHSIiMw?start=${videoStart}&rel=0&autoplay=${videoAutoplay ? 1 : 0}`}
-                title="人生オーバー harha Guitar TAB 動画"
+                src={`https://www.youtube-nocookie.com/embed/${track.videoId}?start=${videoStart}&rel=0&autoplay=${videoAutoplay ? 1 : 0}`}
+                title={`${song.title} ${track.label} TAB 動画`}
               />
             </div>
           </section>
@@ -1430,18 +1965,18 @@ export function GuitarTrainer() {
           <section className="rounded-2xl border border-stone-700 bg-stone-900 p-4 shadow-xl sm:p-6" aria-labelledby="full-score-title">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-sm font-bold text-lime-300">LEAD TAB · 全曲</p>
-                <h2 id="full-score-title" className="mt-1 text-balance text-2xl font-black">下段リードを1〜151小節</h2>
-                <p className="mt-2 max-w-2xl text-pretty text-sm text-stone-400">貼ってもらったTABを1つのデータ譜に統合。6本の線・数字・拍・奏法記号を描画し、同じデータを連続再生にも使います。</p>
+                <p className="text-sm font-bold text-lime-300">{track.badge} TAB · 全曲</p>
+                <h2 id="full-score-title" className="mt-1 text-balance text-2xl font-black">{track.label}を1〜{song.totalMeasures}小節</h2>
+                <p className="mt-2 max-w-2xl text-pretty text-sm text-stone-400">{track.description}</p>
               </div>
               <label className="grid gap-1 text-xs font-bold text-stone-400">
                 小節へ移動
                 <select
                   className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-3 text-sm font-bold text-stone-100"
-                  onChange={(event) => jumpScoreTo(SCORE_PAGES[Number(event.target.value)].start)}
+                  onChange={(event) => jumpScoreTo(activeScorePages[Number(event.target.value)].start)}
                   value={scorePageIndex}
                 >
-                  {SCORE_PAGES.map((page, index) => <option value={index} key={page.start}>{page.start}〜{page.end}小節</option>)}
+                  {activeScorePages.map((page, index) => <option value={index} key={page.start}>{page.start}〜{page.end}小節</option>)}
                 </select>
               </label>
             </div>
@@ -1453,44 +1988,56 @@ export function GuitarTrainer() {
                   <p className="mt-1 text-sm font-bold text-stone-200" aria-live="polite">
                     {playing
                       ? `再生中 · ${playbackLabel} · ${playbackMeasure ?? activeMeasure}小節`
-                      : `停止中 · 共通位置 ${activeMeasure}小節`}
+                      : `選択中 · ${selectedPlaybackChoice.label}`}
                   </p>
                 </div>
-                {playing && (
-                  <button className="min-h-11 rounded-xl border border-red-400 px-5 text-sm font-black text-red-300 hover:bg-red-400 hover:text-stone-950" onClick={stopPlayback} type="button">■ 停止</button>
-                )}
+                <button
+                  aria-label={playing ? "TAB音源を停止" : `${selectedPlaybackChoice.label}を再生`}
+                  className={`min-h-12 min-w-32 rounded-xl border px-5 text-sm font-black transition-colors ${playing
+                    ? "border-red-400 bg-red-400/10 text-red-300 hover:bg-red-400 hover:text-stone-950"
+                    : "border-lime-300 bg-lime-300 text-lime-950 hover:bg-lime-200"}`}
+                  onClick={toggleSelectedPlayback}
+                  type="button"
+                >
+                  {playing ? "■ 停止" : "▶ 再生"}
+                </button>
               </div>
+              <p className="mt-4 text-[11px] font-black tracking-[0.16em] text-stone-500">再生範囲を選択</p>
               <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <button className="min-h-14 rounded-xl border border-stone-700 bg-stone-900 px-4 py-2 text-left text-sm font-black hover:border-lime-300" onClick={() => playRange(selectedScorePage.start, selectedScorePage.end, `${selectedScorePage.start}〜${selectedScorePage.end}小節`)} type="button">
-                  <span className="block">▶ 表示4小節</span>
-                  <small className="mt-1 block font-bold text-stone-500">{selectedScorePage.start}〜{selectedScorePage.end} · {rangeDuration(selectedScorePage.start, selectedScorePage.end, bpm)}</small>
-                </button>
-                <button className="min-h-14 rounded-xl border border-stone-700 bg-stone-900 px-4 py-2 text-left text-sm font-black hover:border-lime-300" onClick={() => playRange(currentSongPart.start, currentSongPart.end, `${currentSongPart.label} ${currentSongPart.range}`)} type="button">
-                  <span className="block">▶ この区間</span>
-                  <small className="mt-1 block font-bold text-stone-500">{currentSongPart.label} {currentSongPart.range} · {rangeDuration(currentSongPart.start, currentSongPart.end, bpm)}</small>
-                </button>
-                <button className="min-h-14 rounded-xl bg-lime-300 px-4 py-2 text-left text-sm font-black text-lime-950 hover:bg-lime-200" onClick={() => playRange(1, 151, "曲全体 1〜151小節")} type="button">
-                  <span className="block">▶ 曲全体 1〜151</span>
-                  <small className="mt-1 block font-bold text-lime-800">休みも含む · {rangeDuration(1, 151, bpm)}</small>
-                </button>
-                <button className="min-h-14 rounded-xl border border-lime-300 bg-lime-300/10 px-4 py-2 text-left text-sm font-black text-lime-300 hover:bg-lime-300 hover:text-lime-950" onClick={() => playRange(activeMeasure, 151, `現在地 ${activeMeasure}〜151小節`)} type="button">
-                  <span className="block">▶ 現在地から最後まで</span>
-                  <small className="mt-1 block font-bold opacity-70">{activeMeasure}〜151 · {rangeDuration(activeMeasure, 151, bpm)}</small>
-                </button>
+                {playbackChoices.map((choice) => {
+                  const selected = choice.id === playbackPreset;
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      className={`relative min-h-16 rounded-xl border px-4 py-3 text-left text-sm font-black transition-colors ${selected
+                        ? "border-lime-300 bg-lime-300 text-lime-950 shadow-[0_0_0_1px_rgba(190,242,100,0.35)]"
+                        : "border-stone-700 bg-stone-900 text-stone-200 hover:border-lime-300 hover:bg-stone-800"}`}
+                      key={choice.id}
+                      onClick={() => selectPlaybackPreset(choice.id)}
+                      type="button"
+                    >
+                      <span className="flex items-center justify-between gap-3">
+                        <span>{choice.title}</span>
+                        {selected && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
+                      </span>
+                      <small className={`mt-1 block font-bold ${selected ? "text-lime-900" : "text-stone-500"}`}>{choice.detail}</small>
+                    </button>
+                  );
+                })}
               </div>
-              <p className="mt-3 text-xs font-bold text-stone-500">再生位置はSONG MAPとTABに同期します。動画は上の「動画を○小節から」で同じ位置へ移動します。</p>
+              <p className="mt-3 text-xs font-bold text-stone-500">範囲を選んで上の「再生」を押します。再生位置はSONG MAPとTABに同期します。</p>
             </div>
 
             <div className="mt-5 grid gap-4 xl:grid-cols-2">
               {selectedScorePage.measures.map((measure) => (
-                <ScoreMeasure measure={measure} currentId={currentNote.id} learnedIds={learnedIds} onSelect={selectNote} isPlaying={playbackMeasure === measure} key={measure} />
+                <ScoreMeasure songId={songId} trackId={trackId} measure={measure} currentId={currentNote.id} learnedIds={learnedIds} onSelect={selectNote} isPlaying={playbackMeasure === measure} key={measure} />
               ))}
             </div>
 
             <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === 0} onClick={() => jumpScoreTo(SCORE_PAGES[Math.max(0, scorePageIndex - 1)].start)} type="button">← 前の4小節</button>
+              <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === 0} onClick={() => jumpScoreTo(activeScorePages[Math.max(0, scorePageIndex - 1)].start)} type="button">← 前の4小節</button>
               <p className="px-2 text-center text-sm font-black tabular-nums">{selectedScorePage.start}–{selectedScorePage.end}</p>
-              <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === SCORE_PAGES.length - 1} onClick={() => jumpScoreTo(SCORE_PAGES[Math.min(SCORE_PAGES.length - 1, scorePageIndex + 1)].start)} type="button">次の4小節 →</button>
+              <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === activeScorePages.length - 1} onClick={() => jumpScoreTo(activeScorePages[Math.min(activeScorePages.length - 1, scorePageIndex + 1)].start)} type="button">次の4小節 →</button>
             </div>
             <details className="mt-4 rounded-xl border border-stone-700 bg-stone-950 p-4 text-sm text-stone-300">
               <summary className="min-h-6 cursor-pointer font-black text-stone-100">TABの読み方</summary>
@@ -1503,13 +2050,13 @@ export function GuitarTrainer() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-bold text-lime-300 tabular-nums">
-                    NOTE {String(noteIndex + 1).padStart(2, "0")} / {NOTES.length}
+                    {trackId === "backing" ? "CHORD ROOT" : "NOTE"} {String(noteIndex + 1).padStart(2, "0")} / {activeNotes.length}
                   </p>
                   <h2 id="current-note-title" className="mt-2 text-balance text-4xl font-black sm:text-5xl" aria-live="polite">
                     {currentNote.stringNo}弦 <span className="text-lime-300 tabular-nums">{currentNote.fret}</span>フレット
                   </h2>
                   <p className="mt-3 text-pretty text-stone-300">
-                    {stringDescription(currentNote.stringNo)}。カポを0として、{currentNote.fret}つ先を押さえます。
+                    {stringDescription(currentNote.stringNo)}。{trackId === "backing" ? "コード判定用のルート音" : "TABの単音"}として{currentNote.fret}フレットを狙います。
                   </p>
                 </div>
                 <button
@@ -1562,7 +2109,7 @@ export function GuitarTrainer() {
                 </div>
                 <div className="rounded-xl bg-stone-800 p-4">
                   <p className="text-xs font-bold text-stone-500">実際のギター上では</p>
-                  <p className="mt-2 font-bold tabular-nums">カポ3 + TAB {currentNote.fret} = {currentNote.fret + 3}フレット位置</p>
+                  <p className="mt-2 font-bold tabular-nums">カポ{song.capo} + TAB {currentNote.fret} = {currentNote.fret + song.capo}フレット位置</p>
                 </div>
               </div>
             </div>
@@ -1571,7 +2118,7 @@ export function GuitarTrainer() {
               <div className="grid grid-cols-3 gap-2">
                 <button className="min-h-12 rounded-xl border border-stone-600 bg-stone-900 px-3 font-bold disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={() => goBy(-1)} disabled={noteIndex === 0}>← 前の音</button>
                 <button className="min-h-12 rounded-xl bg-lime-300 px-3 font-black text-lime-950 hover:bg-lime-200" type="button" onClick={playCurrentNote}>音を聴く</button>
-                <button className="min-h-12 rounded-xl border border-stone-600 bg-stone-900 px-3 font-bold disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={() => goBy(1)} disabled={noteIndex === NOTES.length - 1}>次の音 →</button>
+                <button className="min-h-12 rounded-xl border border-stone-600 bg-stone-900 px-3 font-bold disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={() => goBy(1)} disabled={noteIndex === activeNotes.length - 1}>次の音 →</button>
               </div>
               <button
                 className="min-h-12 rounded-xl border border-lime-300 px-5 font-black text-lime-300 hover:bg-lime-300 hover:text-lime-950"
@@ -1583,7 +2130,7 @@ export function GuitarTrainer() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-stone-800 bg-stone-900 p-4 sm:p-6" aria-labelledby="technique-title">
+          {songId === "life-over" && trackId === "lead" && <section className="rounded-2xl border border-stone-800 bg-stone-900 p-4 sm:p-6" aria-labelledby="technique-title">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-sm font-bold text-lime-300">PLAYING GUIDE</p>
@@ -1598,7 +2145,7 @@ export function GuitarTrainer() {
                 <TechniqueGuideCard guide={guide} onJump={jumpScoreTo} key={guide.kind} />
               ))}
             </div>
-          </section>
+          </section>}
         </div>
 
         <aside className="space-y-6">
@@ -1608,12 +2155,15 @@ export function GuitarTrainer() {
               <h2 id="tempo-title" className="text-balance text-xl font-black">練習テンポ</h2>
               <p className="text-3xl font-black tabular-nums">{bpm}<span className="ml-1 text-xs text-stone-500">BPM</span></p>
             </div>
-            <input className="mt-5 min-h-11 w-full" type="range" min="50" max="170" step="1" value={bpm} onChange={(event) => changeBpm(Number(event.target.value))} aria-label="練習テンポ" />
-            <div className="mt-2 flex justify-between text-xs text-stone-500 tabular-nums"><span>50</span><span>170</span></div>
+            <input className="mt-5 min-h-11 w-full" type="range" min="50" max={song.originalBpm} step="1" value={bpm} onChange={(event) => changeBpm(Number(event.target.value))} aria-label="練習テンポ" />
+            <div className="mt-2 flex justify-between text-xs text-stone-500 tabular-nums"><span>50</span><span>{song.originalBpm}</span></div>
             <div className="mt-4 grid grid-cols-3 gap-2">
-              {[85, 119, 170].map((value) => (
-                <button className="min-h-11 rounded-lg border border-stone-700 bg-stone-950 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={bpm === value} type="button" onClick={() => changeBpm(value)} key={value}>{Math.round((value / 170) * 100)}%</button>
-              ))}
+              {[0.5, 0.7, 1].map((ratio) => {
+                const value = Math.round(song.originalBpm * ratio);
+                return (
+                <button className="min-h-11 rounded-lg border border-stone-700 bg-stone-950 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={bpm === value} type="button" onClick={() => changeBpm(value)} key={ratio}>{Math.round(ratio * 100)}%</button>
+                );
+              })}
             </div>
             <label className="mt-5 flex min-h-11 cursor-pointer items-center gap-3 border-t border-stone-800 pt-4 text-sm font-bold">
               <input className="size-5" type="checkbox" checked={countIn} onChange={(event) => setCountIn(event.target.checked)} />
@@ -1647,9 +2197,9 @@ export function GuitarTrainer() {
           <section className="rounded-2xl border border-stone-800 bg-stone-900 p-5" aria-labelledby="progress-title">
             <div className="flex items-end justify-between gap-4">
               <div><p className="text-sm font-bold text-lime-300">TODAY</p><h2 id="progress-title" className="mt-1 text-balance text-xl font-black">覚えた音</h2></div>
-              <p className="text-2xl font-black tabular-nums">{learnedIds.size}<span className="text-sm text-stone-500"> / {NOTES.length}</span></p>
+              <p className="text-2xl font-black tabular-nums">{learnedForSong}<span className="text-sm text-stone-500"> / {activeNotes.length}</span></p>
             </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-800" role="progressbar" aria-label="覚えた音の進捗" aria-valuemin={0} aria-valuemax={NOTES.length} aria-valuenow={learnedIds.size}>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-800" role="progressbar" aria-label="覚えた音の進捗" aria-valuemin={0} aria-valuemax={activeNotes.length} aria-valuenow={learnedForSong}>
               <div className="progress-fill h-full rounded-full bg-lime-300" style={{ "--progress": `${learnedProgress}%` } as React.CSSProperties} />
             </div>
             <p className="mt-3 text-pretty text-sm text-stone-400">場所を見ずに3回続けて弾けたら「できた！」を付けよう。</p>
