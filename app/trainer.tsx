@@ -65,6 +65,7 @@ function chorusAnswer(
   measure: number,
   variation: "high" | "low" | "ending",
 ): TabEvent[] {
+  const holdString: StringNumber = variation === "low" ? 3 : 2;
   const middle: Array<[number, "note" | "rest", StringNumber?, number?, number?]> =
     variation === "high"
       ? [
@@ -73,8 +74,8 @@ function chorusAnswer(
         ]
       : variation === "low"
         ? [
-            [1, "note", 2, 10], [2, "note", 3, 12], [3, "note", 3, 10, 2],
-            [5, "note", 2, 10], [6, "note", 2, 10, 2],
+            [1, "note", 3, 10], [2, "note", 3, 12], [3, "note", 3, 10, 2],
+            [5, "note", 3, 10], [6, "note", 3, 10, 2],
           ]
         : [
             [1, "note", 2, 10], [2, "rest"], [3, "note", 2, 9, 2],
@@ -82,7 +83,7 @@ function chorusAnswer(
           ];
 
   return [
-    { id: `m${measure}-h1`, measure, tick: 0, kind: "hold", stringNo: 2, fret: 10 },
+    { id: `m${measure}-h1`, measure, tick: 0, kind: "hold", stringNo: holdString, fret: 10 },
     ...middle.map(([tick, kind, stringNo, fret, duration], index) => ({
       id: `m${measure}-${kind === "rest" ? "r" : "n"}${index + 1}`,
       measure,
@@ -139,7 +140,7 @@ const TECHNIQUE_MEASURES = [
   { measure: 67, sequence: "(7) → 9 ｜ 休 ｜ ×× → 7 → 9", focus: "タイを残して再開" },
   { measure: 68, sequence: "休 ｜ ×× → 7 ｜ 休 ｜ 7 → 10 → 9〜", focus: "弦をまたぐ移動" },
   { measure: 69, sequence: "(9) → 7 ｜ 休 ｜ × → 7 → 9 → 7 → 10", focus: "上の弦へ駆け上がる" },
-  { measure: 70, sequence: "×/× → 12/9 → 11 → ×× → 7 → 9 → 7〜", focus: "2音と単音の切替" },
+  { measure: 70, sequence: "×/× → 12/9 → ×/× → 10/7 → ×/× → 7/4 → 8/5 → 10/7", focus: "2音コードの平行移動" },
   { measure: 71, sequence: "(7) → 9 → × → 11 → × → 7 → 7 → ××", focus: "短いミュートを挟む" },
   { measure: 72, sequence: "× → × → 12 ｜ ×× → 12 → 10 → 12 → 11", focus: "16分のミュート" },
   { measure: 73, sequence: "休 → 7 → 9 → 7 → 9 sl.11→9 → 7", focus: "スライド" },
@@ -160,7 +161,7 @@ const BRIDGE_TECHNIQUE_MEASURES = [
 ];
 
 const OUTRO_TECHNIQUE_MEASURES = [
-  { measure: 142, sequence: "(10) → 12 → 10 → 12 → 10 → 13", focus: "弦移動" },
+  { measure: 142, sequence: "(10) → 12 → 10 → 12 → 10 → 13 → 13", focus: "弦移動" },
   { measure: 143, sequence: "10 → 13 → 12 → 13 → 12 sl.10 → 10 → 10〜", focus: "下降スライド" },
   { measure: 144, sequence: "(10) → 12 → 10 → 10 ｜ 休 → 10", focus: "休符を切る" },
   { measure: 145, sequence: "12 → 10 → 13 → 10 → 12 → 10 → 12 → 10〜", focus: "8分音符ラン" },
@@ -213,9 +214,9 @@ const TECHNIQUE_TAB_GLYPHS: Record<number, ScoreGlyph[]> = {
     { slot: 4, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
     { slot: 6, symbols: [{ stringNo: 2, text: "10" }, { stringNo: 3, text: "7" }] },
     { slot: 8, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
-    { slot: 10, symbols: [{ stringNo: 3, text: "7" }] },
-    { slot: 12, symbols: [{ stringNo: 3, text: "9" }] },
-    { slot: 14, symbols: [{ stringNo: 3, text: "7" }] },
+    { slot: 10, symbols: [{ stringNo: 2, text: "7" }, { stringNo: 3, text: "4" }] },
+    { slot: 12, symbols: [{ stringNo: 2, text: "8" }, { stringNo: 3, text: "5" }] },
+    { slot: 14, symbols: [{ stringNo: 2, text: "10" }, { stringNo: 3, text: "7" }] },
   ],
   71: [
     { slot: 0, symbols: [{ stringNo: 3, text: "(7)" }] },
@@ -292,13 +293,13 @@ const TECHNIQUE_TAB_GLYPHS: Record<number, ScoreGlyph[]> = {
   ],
   79: [
     { slot: 2, symbols: [{ stringNo: 2, text: "12" }] },
-    { slot: 4, symbols: [{ stringNo: 2, text: "10" }] },
-    { slot: 6, symbols: [{ stringNo: 2, text: "12" }] },
-    { slot: 8, symbols: [{ stringNo: 2, text: "10" }] },
-    { slot: 10, symbols: [{ stringNo: 2, text: "12" }], technique: "full" },
+    { slot: 4, symbols: [{ stringNo: 1, text: "10" }] },
+    { slot: 6, symbols: [{ stringNo: 1, text: "12" }] },
+    { slot: 8, symbols: [{ stringNo: 1, text: "10" }] },
+    { slot: 10, symbols: [{ stringNo: 1, text: "12" }], technique: "full" },
   ],
   80: [
-    { slot: 0, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 0, symbols: [{ stringNo: 1, text: "10" }] },
     { slot: 6, symbols: [{ stringNo: 2, text: "10" }] },
     { slot: 7, symbols: [{ stringNo: 2, text: "12" }], technique: "H" },
     { slot: 8, symbols: [{ stringNo: 2, text: "10" }] },
@@ -308,13 +309,13 @@ const TECHNIQUE_TAB_GLYPHS: Record<number, ScoreGlyph[]> = {
     { slot: 15, symbols: [{ stringNo: 3, text: "7" }] },
   ],
   81: [
-    { slot: 0, symbols: [{ stringNo: 2, text: "10" }, { stringNo: 3, text: "7" }] },
-    { slot: 4, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
-    { slot: 5, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
-    { slot: 6, symbols: [{ stringNo: 2, text: "10" }, { stringNo: 3, text: "7" }] },
-    { slot: 9, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
-    { slot: 10, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
-    { slot: 11, symbols: [{ stringNo: 2, text: "10" }, { stringNo: 3, text: "7" }] },
+    { slot: 0, symbols: [{ stringNo: 1, text: "10" }, { stringNo: 2, text: "7" }] },
+    { slot: 4, symbols: [{ stringNo: 1, text: "×" }, { stringNo: 2, text: "×" }] },
+    { slot: 5, symbols: [{ stringNo: 1, text: "×" }, { stringNo: 2, text: "×" }] },
+    { slot: 6, symbols: [{ stringNo: 1, text: "10" }, { stringNo: 2, text: "7" }] },
+    { slot: 9, symbols: [{ stringNo: 1, text: "×" }, { stringNo: 2, text: "×" }] },
+    { slot: 10, symbols: [{ stringNo: 1, text: "×" }, { stringNo: 2, text: "×" }] },
+    { slot: 11, symbols: [{ stringNo: 1, text: "10" }, { stringNo: 2, text: "7" }] },
   ],
   114: [
     { slot: 0, symbols: [{ stringNo: 2, text: "14" }, { stringNo: 3, text: "11" }] },
@@ -332,21 +333,21 @@ const TECHNIQUE_TAB_GLYPHS: Record<number, ScoreGlyph[]> = {
     { slot: 10, symbols: [{ stringNo: 1, text: "<5>" }, { stringNo: 2, text: "<5>" }, { stringNo: 3, text: "<5>" }, { stringNo: 4, text: "<5>" }], technique: "harm." },
   ],
   142: [
-    { slot: 0, symbols: [{ stringNo: 3, text: "(10)" }] }, { slot: 2, symbols: [{ stringNo: 3, text: "12" }] },
-    { slot: 4, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 6, symbols: [{ stringNo: 2, text: "13" }] },
-    { slot: 8, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 10, symbols: [{ stringNo: 3, text: "12" }] },
-    { slot: 12, symbols: [{ stringNo: 3, text: "10" }] }, { slot: 14, symbols: [{ stringNo: 4, text: "12" }] },
+    { slot: 0, symbols: [{ stringNo: 3, text: "(10)" }] }, { slot: 2, symbols: [{ stringNo: 4, text: "12" }] },
+    { slot: 4, symbols: [{ stringNo: 3, text: "10" }] }, { slot: 6, symbols: [{ stringNo: 3, text: "12" }] },
+    { slot: 8, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 10, symbols: [{ stringNo: 2, text: "13" }] },
+    { slot: 12, symbols: [{ stringNo: 1, text: "13" }] },
   ],
   143: [
-    { slot: 0, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 2, symbols: [{ stringNo: 2, text: "13" }] },
-    { slot: 4, symbols: [{ stringNo: 2, text: "12" }] }, { slot: 6, symbols: [{ stringNo: 2, text: "13" }] },
-    { slot: 8, symbols: [{ stringNo: 2, text: "12" }] }, { slot: 10, symbols: [{ stringNo: 2, text: "10" }], technique: "sl." },
-    { slot: 12, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 14, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 0, symbols: [{ stringNo: 1, text: "10" }] }, { slot: 2, symbols: [{ stringNo: 1, text: "13" }] },
+    { slot: 4, symbols: [{ stringNo: 1, text: "12" }] }, { slot: 6, symbols: [{ stringNo: 2, text: "13" }] },
+    { slot: 8, symbols: [{ stringNo: 3, text: "12" }] }, { slot: 10, symbols: [{ stringNo: 3, text: "10" }], technique: "sl." },
+    { slot: 12, symbols: [{ stringNo: 3, text: "10" }] }, { slot: 14, symbols: [{ stringNo: 3, text: "10" }], technique: "tie" },
   ],
   144: [
-    { slot: 0, symbols: [{ stringNo: 2, text: "(10)" }] }, { slot: 2, symbols: [{ stringNo: 3, text: "12" }] },
-    { slot: 4, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 6, symbols: [{ stringNo: 2, text: "10" }] },
-    { slot: 14, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 0, symbols: [{ stringNo: 3, text: "(10)" }] }, { slot: 2, symbols: [{ stringNo: 3, text: "12" }] },
+    { slot: 4, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 6, symbols: [{ stringNo: 3, text: "10" }] },
+    { slot: 14, symbols: [{ stringNo: 4, text: "10" }] },
   ],
   145: [
     { slot: 0, symbols: [{ stringNo: 3, text: "12" }] }, { slot: 2, symbols: [{ stringNo: 2, text: "10" }] },
@@ -367,10 +368,10 @@ const TECHNIQUE_TAB_GLYPHS: Record<number, ScoreGlyph[]> = {
     { slot: 12, symbols: [{ stringNo: 2, text: "12" }] }, { slot: 14, symbols: [{ stringNo: 2, text: "13" }] },
   ],
   148: [
-    { slot: 4, symbols: [{ stringNo: 2, text: "13" }, { stringNo: 3, text: "10" }] },
-    { slot: 8, symbols: [{ stringNo: 2, text: "13" }, { stringNo: 3, text: "10" }] },
-    { slot: 12, symbols: [{ stringNo: 2, text: "13" }, { stringNo: 3, text: "10" }] },
-    { slot: 14, symbols: [{ stringNo: 2, text: "13" }, { stringNo: 3, text: "10" }] },
+    { slot: 4, symbols: [{ stringNo: 1, text: "13" }, { stringNo: 3, text: "10" }] },
+    { slot: 8, symbols: [{ stringNo: 1, text: "13" }, { stringNo: 3, text: "10" }] },
+    { slot: 12, symbols: [{ stringNo: 1, text: "13" }, { stringNo: 3, text: "10" }] },
+    { slot: 14, symbols: [{ stringNo: 1, text: "13" }, { stringNo: 3, text: "10" }] },
   ],
 };
 
@@ -404,6 +405,15 @@ type PlaybackEvent = {
   fret: number;
   durationSteps: number;
   noteId?: string;
+};
+
+type PlaybackSession = {
+  startMeasure: number;
+  endMeasure: number;
+  label: string;
+  bpm: number;
+  positionSteps: number;
+  scheduledAt: number;
 };
 
 const TAB_VIDEO_START_SECONDS = 215;
@@ -802,6 +812,7 @@ export function GuitarTrainer() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const timerIdsRef = useRef<number[]>([]);
   const activeNodesRef = useRef<Set<OscillatorNode>>(new Set());
+  const playbackSessionRef = useRef<PlaybackSession | null>(null);
   const inputStreamRef = useRef<MediaStream | null>(null);
   const inputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const inputFilterRef = useRef<BiquadFilterNode | null>(null);
@@ -854,7 +865,7 @@ export function GuitarTrainer() {
     timerIdsRef.current = [];
   }, []);
 
-  const stopPlayback = useCallback(() => {
+  const clearPlaybackSchedule = useCallback(() => {
     clearTimers();
     activeNodesRef.current.forEach((node) => {
       try {
@@ -864,10 +875,15 @@ export function GuitarTrainer() {
       }
     });
     activeNodesRef.current.clear();
+  }, [clearTimers]);
+
+  const stopPlayback = useCallback(() => {
+    clearPlaybackSchedule();
+    playbackSessionRef.current = null;
     setPlaying(false);
     setPlaybackMeasure(null);
     setPlaybackLabel("");
-  }, [clearTimers]);
+  }, [clearPlaybackSchedule]);
 
   useEffect(() => {
     const activeNodes = activeNodesRef.current;
@@ -1093,68 +1109,120 @@ export function GuitarTrainer() {
     schedulePluck(context, currentNote.stringNo, currentNote.fret, context.currentTime + 0.04, 0.7);
   }
 
-  function playRange(startMeasure: number, endMeasure: number, label: string) {
-    stopPlayback();
+  function scheduleRange(
+    startMeasure: number,
+    endMeasure: number,
+    label: string,
+    nextBpm: number,
+    positionSteps: number,
+  ) {
     const context = getAudioContext();
     void context.resume();
-    const secondsPerStep = 15 / bpm;
-    const countInSteps = countIn ? 16 : 0;
-    const startAt = context.currentTime + 0.08;
+    const secondsPerStep = 15 / nextBpm;
+    const totalSteps = (endMeasure - startMeasure + 1) * 16;
+    const earliestStep = countIn ? -16 : 0;
+    const boundedPosition = Math.min(totalSteps, Math.max(earliestStep, positionSteps));
+    const startAt = context.currentTime + 0.03;
 
-    if (countIn) {
-      for (let step = 0; step < countInSteps; step += 4) {
-        scheduleClick(context, startAt + step * secondsPerStep, step === 0);
+    playbackSessionRef.current = {
+      startMeasure,
+      endMeasure,
+      label,
+      bpm: nextBpm,
+      positionSteps: boundedPosition,
+      scheduledAt: startAt,
+    };
+
+    if (countIn && boundedPosition < 0) {
+      for (let step = -16; step < 0; step += 4) {
+        if (step + 0.001 >= boundedPosition) {
+          scheduleClick(context, startAt + (step - boundedPosition) * secondsPerStep, step === -16);
+        }
       }
     }
 
     for (let measure = startMeasure; measure <= endMeasure; measure += 1) {
-      const measureOffset = countInSteps + (measure - startMeasure) * 16;
+      const measureOffset = (measure - startMeasure) * 16;
       if (metronome) {
         for (let step = 0; step < 16; step += 4) {
-          scheduleClick(context, startAt + (measureOffset + step) * secondsPerStep, step === 0);
+          const clickStep = measureOffset + step;
+          if (clickStep + 0.001 >= boundedPosition) {
+            scheduleClick(context, startAt + (clickStep - boundedPosition) * secondsPerStep, step === 0);
+          }
         }
       }
 
       scorePlaybackEvents(measure).forEach((event) => {
         const eventOffset = measureOffset + event.step;
+        if (eventOffset + 0.001 < boundedPosition) return;
         schedulePluck(
           context,
           event.stringNo,
           event.fret,
-          startAt + eventOffset * secondsPerStep,
+          startAt + (eventOffset - boundedPosition) * secondsPerStep,
           Math.max(0.12, event.durationSteps * secondsPerStep * 0.86),
         );
         if (event.noteId) {
           const timerId = window.setTimeout(() => {
             const nextIndex = NOTES.findIndex((candidate) => candidate.id === event.noteId);
             if (nextIndex >= 0) moveToNoteIndex(nextIndex);
-          }, eventOffset * secondsPerStep * 1000);
+          }, (eventOffset - boundedPosition) * secondsPerStep * 1000);
           timerIdsRef.current.push(timerId);
         }
       });
 
-      const measureTimer = window.setTimeout(() => {
-        setPlaybackMeasure(measure);
-        setTimelineMeasure(measure);
-        setScorePageIndex(Math.floor((measure - 1) / 4));
-      }, measureOffset * secondsPerStep * 1000);
-      timerIdsRef.current.push(measureTimer);
+      if (measureOffset > boundedPosition + 0.001) {
+        const measureTimer = window.setTimeout(() => {
+          setPlaybackMeasure(measure);
+          setTimelineMeasure(measure);
+          setScorePageIndex(Math.floor((measure - 1) / 4));
+        }, (measureOffset - boundedPosition) * secondsPerStep * 1000);
+        timerIdsRef.current.push(measureTimer);
+      }
     }
 
+    const currentMeasure = startMeasure + Math.min(
+      endMeasure - startMeasure,
+      Math.max(0, Math.floor(boundedPosition / 16)),
+    );
     setPlaying(true);
     setPlaybackLabel(label);
-    setPlaybackMeasure(startMeasure);
-    setTimelineMeasure(startMeasure);
-    setScorePageIndex(Math.floor((startMeasure - 1) / 4));
+    setPlaybackMeasure(currentMeasure);
+    setTimelineMeasure(currentMeasure);
+    setScorePageIndex(Math.floor((currentMeasure - 1) / 4));
     const endTimer = window.setTimeout(
       () => {
+        playbackSessionRef.current = null;
         setPlaying(false);
         setPlaybackMeasure(null);
         setPlaybackLabel("");
       },
-      (countInSteps + (endMeasure - startMeasure + 1) * 16 + 0.3) * secondsPerStep * 1000,
+      (totalSteps - boundedPosition + 0.3) * secondsPerStep * 1000,
     );
     timerIdsRef.current.push(endTimer);
+  }
+
+  function playRange(startMeasure: number, endMeasure: number, label: string) {
+    stopPlayback();
+    scheduleRange(startMeasure, endMeasure, label, bpm, countIn ? -16 : 0);
+  }
+
+  function changeBpm(nextBpm: number) {
+    const session = playbackSessionRef.current;
+    setBpm(nextBpm);
+    if (!session) return;
+
+    const context = getAudioContext();
+    const elapsedSeconds = Math.max(0, context.currentTime - session.scheduledAt);
+    const currentPosition = session.positionSteps + (elapsedSeconds * session.bpm) / 15;
+    clearPlaybackSchedule();
+    scheduleRange(
+      session.startMeasure,
+      session.endMeasure,
+      session.label,
+      nextBpm,
+      currentPosition,
+    );
   }
 
   function playMeasure() {
@@ -1243,6 +1311,75 @@ export function GuitarTrainer() {
         </div>
       </header>
 
+      <section className="live-console sticky top-0 z-50 border-b border-stone-700 bg-stone-950/95 shadow-2xl backdrop-blur" aria-labelledby="live-console-title">
+        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded-md bg-lime-300 px-2 py-1 text-[0.68rem] font-black text-lime-950">LIVE MONITOR</span>
+              <div>
+                <h2 id="live-console-title" className="text-sm font-black sm:text-base">Ampero入力・チューナー・TAB判定</h2>
+                <p className="text-xs font-bold text-stone-500">{inputEnabled ? "接続中" : "未接続"} · {inputMode === "judge" ? "TAB判定" : "チューナー"}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-stone-900 p-1" aria-label="入力モード">
+              <button className="min-h-10 rounded-lg px-4 text-xs font-black data-[active=true]:bg-lime-300 data-[active=true]:text-lime-950" data-active={inputMode === "judge"} type="button" onClick={() => setInputMode("judge")}>TAB判定</button>
+              <button className="min-h-10 rounded-lg px-4 text-xs font-black data-[active=true]:bg-lime-300 data-[active=true]:text-lime-950" data-active={inputMode === "tuner"} type="button" onClick={() => setInputMode("tuner")}>チューナー</button>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(12rem,1.2fr)_repeat(3,minmax(5.5rem,.55fr))_minmax(14rem,1.2fr)]">
+            <div className="flex min-w-0 gap-2">
+              {inputEnabled && audioDevices.length > 0 ? (
+                <select className="min-h-11 min-w-0 flex-1 rounded-xl border border-stone-700 bg-stone-900 px-3 text-xs font-bold text-stone-100" value={selectedDeviceId} onChange={(event) => void connectInput(event.target.value)} aria-label="入力デバイス">
+                  {audioDevices.map((device, index) => <option value={device.deviceId} key={device.deviceId}>{device.label || `音声入力 ${index + 1}`}</option>)}
+                </select>
+              ) : (
+                <button className="min-h-11 flex-1 rounded-xl bg-lime-300 px-3 text-sm font-black text-lime-950" onClick={() => void connectInput()} type="button">Amperoを接続</button>
+              )}
+              {inputEnabled && <button className="min-h-11 rounded-xl border border-stone-700 px-3 text-xs font-bold" onClick={disconnectInput} type="button">切断</button>}
+            </div>
+            <div className="rounded-xl bg-stone-900 px-3 py-2 text-center">
+              <p className="text-[0.62rem] font-bold text-stone-500">{inputMode === "judge" ? "ねらう音" : "基準音"}</p>
+              <p className="text-lg font-black tabular-nums">{displayTargetFrequency ? noteName(displayTargetFrequency) : "—"}</p>
+            </div>
+            <div className="rounded-xl bg-stone-900 px-3 py-2 text-center">
+              <p className="text-[0.62rem] font-bold text-stone-500">入力音</p>
+              <p className="text-lg font-black tabular-nums">{detectedFrequency ? noteName(detectedFrequency) : "—"}</p>
+            </div>
+            <div className="rounded-xl bg-stone-900 px-3 py-2 text-center">
+              <p className="text-[0.62rem] font-bold text-stone-500">ずれ</p>
+              <p className="text-lg font-black tabular-nums">{detectedCents === null ? "—" : `${detectedCents > 0 ? "+" : ""}${detectedCents.toFixed(0)}¢`}</p>
+            </div>
+            <div className="rounded-xl border border-stone-700 bg-stone-900 px-3 py-2" data-correct={pitchMatched}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="truncate text-xs font-black" aria-live="polite">{tunerMessage}</p>
+                <span className="shrink-0 text-[0.62rem] font-bold text-stone-500 tabular-nums">IN {Math.round(inputLevel * 100)}%</span>
+              </div>
+              <div className="relative mt-2 h-2 overflow-hidden rounded-full bg-stone-700" role="meter" aria-label="ギター入力レベル" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(inputLevel * 100)}>
+                <div className="h-full rounded-full bg-lime-300" style={{ width: `${Math.round(inputLevel * 100)}%` }} />
+                <span className="absolute left-1/2 top-0 h-full w-px bg-white/70" style={{ transform: `translateX(${tunerOffset}px)` }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {inputMode === "judge" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <button className="min-h-10 rounded-xl bg-lime-300 px-4 text-xs font-black text-lime-950" onClick={guidedMode ? stopGuidedMode : startGuidedMode} type="button">{guidedMode ? "■ 正解待ち停止" : "▶ 正解待ちで進む"}</button>
+                <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold"><input className="size-4" type="checkbox" checked={autoAdvance} onChange={(event) => setAutoAdvance(event.target.checked)} />正解で次の音へ</label>
+                <span className="text-xs font-bold text-stone-500">{guidedMode ? (pitchMatched ? "正解 → 次へ" : "違う音なら停止したまま待機") : "譜面を見ながら判定"}</span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1" aria-label="標準チューニングの開放弦">
+                {TUNER_STRINGS.map((string) => <span className="rounded-lg border border-stone-800 px-2 py-1 text-[0.65rem] font-black text-stone-400" key={string.label}>{string.label} {string.name}</span>)}
+              </div>
+            )}
+            <p className="text-xs font-bold text-stone-600">Amperoはクリーン音・1音ずつ</p>
+          </div>
+          {inputError && <p className="mt-2 rounded-lg border border-red-900 bg-red-950 px-3 py-2 text-xs font-bold text-red-200" role="alert">{inputError}</p>}
+        </div>
+      </section>
+
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:px-8">
         <div className="min-w-0 space-y-6">
           <section className="rounded-2xl border border-stone-800 bg-stone-900 p-4 sm:p-6" aria-labelledby="song-map-title">
@@ -1323,7 +1460,7 @@ export function GuitarTrainer() {
                   <button className="min-h-11 rounded-xl border border-red-400 px-5 text-sm font-black text-red-300 hover:bg-red-400 hover:text-stone-950" onClick={stopPlayback} type="button">■ 停止</button>
                 )}
               </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <button className="min-h-14 rounded-xl border border-stone-700 bg-stone-900 px-4 py-2 text-left text-sm font-black hover:border-lime-300" onClick={() => playRange(selectedScorePage.start, selectedScorePage.end, `${selectedScorePage.start}〜${selectedScorePage.end}小節`)} type="button">
                   <span className="block">▶ 表示4小節</span>
                   <small className="mt-1 block font-bold text-stone-500">{selectedScorePage.start}〜{selectedScorePage.end} · {rangeDuration(selectedScorePage.start, selectedScorePage.end, bpm)}</small>
@@ -1336,48 +1473,12 @@ export function GuitarTrainer() {
                   <span className="block">▶ 曲全体 1〜151</span>
                   <small className="mt-1 block font-bold text-lime-800">休みも含む · {rangeDuration(1, 151, bpm)}</small>
                 </button>
+                <button className="min-h-14 rounded-xl border border-lime-300 bg-lime-300/10 px-4 py-2 text-left text-sm font-black text-lime-300 hover:bg-lime-300 hover:text-lime-950" onClick={() => playRange(activeMeasure, 151, `現在地 ${activeMeasure}〜151小節`)} type="button">
+                  <span className="block">▶ 現在地から最後まで</span>
+                  <small className="mt-1 block font-bold opacity-70">{activeMeasure}〜151 · {rangeDuration(activeMeasure, 151, bpm)}</small>
+                </button>
               </div>
               <p className="mt-3 text-xs font-bold text-stone-500">再生位置はSONG MAPとTABに同期します。動画は上の「動画を○小節から」で同じ位置へ移動します。</p>
-            </div>
-
-            <div className="judge-dock sticky top-2 z-40 mt-4 rounded-2xl border border-stone-600 bg-stone-950 p-3 shadow-xl sm:p-4" data-matched={pitchMatched}>
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="rounded-md bg-lime-300 px-2 py-1 text-[0.68rem] font-black text-lime-950">LIVE JUDGE</span>
-                  <p className="text-sm font-black">譜面を見たままAmpero判定</p>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[27rem]">
-                  <div className="rounded-lg bg-stone-900 px-2 py-2">
-                    <p className="text-[0.65rem] font-bold text-stone-500">ねらう音</p>
-                    <p className="text-lg font-black tabular-nums">{noteName(targetFrequency)}</p>
-                  </div>
-                  <div className="rounded-lg bg-stone-900 px-2 py-2">
-                    <p className="text-[0.65rem] font-bold text-stone-500">入力</p>
-                    <p className="text-lg font-black tabular-nums">{detectedFrequency ? noteName(detectedFrequency) : "—"}</p>
-                  </div>
-                  <div className="rounded-lg bg-stone-900 px-2 py-2">
-                    <p className="text-[0.65rem] font-bold text-stone-500">進行</p>
-                    <p className="text-sm font-black" aria-live="polite">{guidedMode ? (pitchMatched ? "正解 → 次へ" : "正解待ち") : "手動"}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-800" aria-label={`入力レベル ${Math.round(inputLevel * 100)}%`}>
-                <div className="h-full bg-lime-300" style={{ width: `${Math.round(inputLevel * 100)}%` }} />
-              </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
-                <p className="text-sm font-bold text-stone-300">
-                  {!inputEnabled
-                    ? "Ampero未接続"
-                    : guidedMode
-                      ? pitchMatched ? "合っています。次の音へ進みます" : "違う音ならここで停止したまま待ちます"
-                      : tunerMessage}
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button className="min-h-11 rounded-xl border border-stone-600 px-3 text-sm font-bold" onClick={() => inputEnabled ? disconnectInput() : void connectInput(selectedDeviceId || undefined)} type="button">{inputEnabled ? "入力を切る" : "Ampero接続"}</button>
-                  <button className="min-h-11 rounded-xl bg-lime-300 px-3 text-sm font-black text-lime-950" onClick={guidedMode ? stopGuidedMode : startGuidedMode} type="button">{guidedMode ? "■ 正解待ち停止" : "▶ 正解待ちで進む"}</button>
-                </div>
-              </div>
-              {inputError && <p className="mt-2 text-xs font-bold text-red-300">{inputError}</p>}
             </div>
 
             <div className="mt-5 grid gap-4 xl:grid-cols-2">
@@ -1501,122 +1602,17 @@ export function GuitarTrainer() {
         </div>
 
         <aside className="space-y-6">
-          <section className="rounded-2xl border border-stone-700 bg-stone-900 p-5" aria-labelledby="input-title">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold text-lime-300">LIVE INPUT</p>
-                <h2 id="input-title" className="mt-1 text-balance text-xl font-black">Amperoで正誤判定・チューナー</h2>
-              </div>
-              <span className="rounded-full border border-stone-700 px-2.5 py-1 text-xs font-bold text-stone-400">
-                {inputEnabled ? "接続中" : "未接続"}
-              </span>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-stone-950 p-1" aria-label="入力モード">
-              <button className="min-h-11 rounded-lg px-3 text-sm font-black data-[active=true]:bg-lime-300 data-[active=true]:text-lime-950" data-active={inputMode === "judge"} type="button" onClick={() => setInputMode("judge")}>TAB判定</button>
-              <button className="min-h-11 rounded-lg px-3 text-sm font-black data-[active=true]:bg-lime-300 data-[active=true]:text-lime-950" data-active={inputMode === "tuner"} type="button" onClick={() => setInputMode("tuner")}>チューナー</button>
-            </div>
-
-            {!inputEnabled ? (
-              <div className="mt-5">
-                <p className="text-pretty text-sm text-stone-400">ブラウザに入力を許可してから、入力一覧でAmpero Miniを選びます。</p>
-                <button className="mt-4 min-h-12 w-full rounded-xl bg-lime-300 px-4 font-black text-lime-950 hover:bg-lime-200" type="button" onClick={() => void connectInput()}>
-                  ギター入力を接続
-                </button>
-              </div>
-            ) : (
-              <div className="mt-5 space-y-4">
-                <label className="block text-sm font-bold text-stone-300">
-                  入力デバイス
-                  <select
-                    className="mt-2 min-h-12 w-full rounded-xl border border-stone-700 bg-stone-950 px-3 text-sm text-stone-100"
-                    value={selectedDeviceId}
-                    onChange={(event) => void connectInput(event.target.value)}
-                  >
-                    {audioDevices.map((device, index) => (
-                      <option value={device.deviceId} key={device.deviceId}>
-                        {device.label || `音声入力 ${index + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="rounded-xl border border-stone-700 bg-stone-950 p-3">
-                  <div className="flex items-center justify-between gap-3 text-xs font-bold">
-                    <span className="text-stone-500">INPUT LEVEL</span>
-                    <span className="tabular-nums text-stone-300">
-                      {inputLevel < 0.06 ? "小さい" : inputLevel > 0.82 ? "大きい" : "適正"} · {Math.round(inputLevel * 100)}%
-                    </span>
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-800" role="meter" aria-label="ギター入力レベル" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(inputLevel * 100)}>
-                    <div className="input-level-fill h-full rounded-full bg-lime-300" style={{ "--input-level": `${inputLevel * 100}%` } as React.CSSProperties} />
-                  </div>
-                  <p className="mt-2 text-pretty text-[0.7rem] text-stone-500">高音弦もピッキング時に10%以上振れれば入力できています。</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="rounded-xl bg-stone-950 p-3">
-                    <p className="text-xs font-bold text-stone-500">{inputMode === "judge" ? "ねらう音" : "最寄りの基準音"}</p>
-                    <p className="mt-1 text-2xl font-black tabular-nums">{displayTargetFrequency ? noteName(displayTargetFrequency) : "—"}</p>
-                    <p className="text-xs text-stone-500 tabular-nums">{displayTargetFrequency ? `${displayTargetFrequency.toFixed(1)} Hz` : "音を待っています"}</p>
-                  </div>
-                  <div className="rounded-xl bg-stone-950 p-3">
-                    <p className="text-xs font-bold text-stone-500">入力された音</p>
-                    <p className="mt-1 text-2xl font-black tabular-nums">{detectedFrequency ? noteName(detectedFrequency) : "—"}</p>
-                    <p className="text-xs text-stone-500 tabular-nums">{detectedFrequency ? `${detectedFrequency.toFixed(1)} Hz` : "音を待っています"}</p>
-                  </div>
-                </div>
-
-                {inputMode === "tuner" && (
-                  <div>
-                    <p className="mb-2 text-xs font-bold text-stone-500">STANDARD TUNING · カポを外して確認</p>
-                    <div className="grid grid-cols-3 gap-2" aria-label="標準チューニングの開放弦">
-                      {TUNER_STRINGS.map((string) => (
-                        <div className="rounded-lg border border-stone-800 bg-stone-950 px-2 py-2 text-center" key={string.label}>
-                          <p className="text-[0.65rem] font-bold text-stone-500">{string.label}</p>
-                          <p className="font-black">{string.name}</p>
-                          <p className="text-[0.62rem] tabular-nums text-stone-600">{string.frequency.toFixed(1)}Hz</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="rounded-xl border border-stone-700 bg-stone-950 p-4" data-correct={pitchMatched}>
-                  <div className="flex justify-between text-[0.68rem] font-bold text-stone-500"><span>低い</span><span>合ってる</span><span>高い</span></div>
-                  <div className="relative mx-auto mt-3 h-3 w-36 rounded-full bg-stone-700" aria-hidden="true">
-                    <span className="absolute left-1/2 top-[-0.35rem] h-6 w-px bg-stone-400" />
-                    <span className="absolute left-1/2 top-[-0.2rem] size-5 rounded-full bg-lime-300" style={{ transform: `translateX(calc(-50% + ${tunerOffset}px))` }} />
-                  </div>
-                  <p className="mt-4 text-center text-sm font-black" aria-live="polite">{tunerMessage}</p>
-                  {detectedCents !== null && <p className="mt-1 text-center text-xs text-stone-500 tabular-nums">{detectedCents > 0 ? "+" : ""}{detectedCents.toFixed(0)} cents</p>}
-                </div>
-
-                {inputMode === "judge" && (
-                  <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-bold">
-                    <input className="size-5" type="checkbox" checked={autoAdvance} onChange={(event) => setAutoAdvance(event.target.checked)} />
-                    正解したら自動で次の音へ
-                  </label>
-                )}
-                <button className="min-h-11 w-full rounded-xl border border-stone-700 text-sm font-bold text-stone-300 hover:bg-stone-800" type="button" onClick={disconnectInput}>入力を切る</button>
-              </div>
-            )}
-
-            {inputError && <p className="mt-3 rounded-lg border border-red-900 bg-red-950 p-3 text-pretty text-sm text-red-200" role="alert">{inputError}</p>}
-            <p className="mt-4 text-pretty text-xs text-stone-500">{inputMode === "judge" ? "TAB判定は「ねらう音」の上下6半音だけを解析し、低い倍音への誤反応を避けます。" : "チューナーはE2〜E4を含むクロマチック判定です。まずカポを外し、開放弦を1本ずつ鳴らします。"} Amperoはクリーン音にしてください。</p>
-          </section>
-
           <section className="rounded-2xl border border-stone-800 bg-stone-900 p-5" aria-labelledby="tempo-title">
             <p className="text-sm font-bold text-lime-300">PRACTICE SPEED</p>
             <div className="mt-2 flex items-end justify-between gap-3">
               <h2 id="tempo-title" className="text-balance text-xl font-black">練習テンポ</h2>
               <p className="text-3xl font-black tabular-nums">{bpm}<span className="ml-1 text-xs text-stone-500">BPM</span></p>
             </div>
-            <input className="mt-5 min-h-11 w-full" type="range" min="50" max="170" step="1" value={bpm} onChange={(event) => setBpm(Number(event.target.value))} aria-label="練習テンポ" />
+            <input className="mt-5 min-h-11 w-full" type="range" min="50" max="170" step="1" value={bpm} onChange={(event) => changeBpm(Number(event.target.value))} aria-label="練習テンポ" />
             <div className="mt-2 flex justify-between text-xs text-stone-500 tabular-nums"><span>50</span><span>170</span></div>
             <div className="mt-4 grid grid-cols-3 gap-2">
               {[85, 119, 170].map((value) => (
-                <button className="min-h-11 rounded-lg border border-stone-700 bg-stone-950 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={bpm === value} type="button" onClick={() => setBpm(value)} key={value}>{Math.round((value / 170) * 100)}%</button>
+                <button className="min-h-11 rounded-lg border border-stone-700 bg-stone-950 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={bpm === value} type="button" onClick={() => changeBpm(value)} key={value}>{Math.round((value / 170) * 100)}%</button>
               ))}
             </div>
             <label className="mt-5 flex min-h-11 cursor-pointer items-center gap-3 border-t border-stone-800 pt-4 text-sm font-bold">

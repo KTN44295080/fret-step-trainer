@@ -44,3 +44,4 @@ next-env.d.ts
 
 # local transcription references (never deployed)
 /reference/tab-screenshots/
+/audit/

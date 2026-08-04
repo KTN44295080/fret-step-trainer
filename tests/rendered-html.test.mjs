@@ -33,10 +33,10 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /<title>FRET \/ STEP — 人生オーバー Lead Trainer<\/title>/i);
   assert.match(html, /人生オーバー/);
   assert.match(html, /LEAD ONLY/);
-  assert.match(html, /Amperoで正誤判定・チューナー/);
+  assert.match(html, /Ampero入力・チューナー・TAB判定/);
   assert.match(html, /TAB判定/);
   assert.match(html, /チューナー/);
-  assert.match(html, /上下6半音/);
+  assert.match(html, /ギター入力レベル/);
   assert.match(html, /奏法記号を「指の動き」で見る/);
   assert.match(html, /LEAD TAB · 全曲/);
   assert.match(html, /下段リードを1〜151小節/);
@@ -44,7 +44,7 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /表示4小節/);
   assert.match(html, /この区間/);
   assert.match(html, /曲全体 1〜151/);
-  assert.match(html, /譜面を見たままAmpero判定/);
+  assert.match(html, /譜面を見ながら判定/);
   assert.match(html, /正解待ちで進む/);
   assert.match(html, /原曲動画/);
   assert.match(html, /6LfUfHSIiMw/);
@@ -65,8 +65,8 @@ test("keeps the input meter and tuner in the client implementation", async () =>
   assert.match(page, /<GuitarTrainer \/>/);
   assert.match(layout, /<html lang="ja">/);
   assert.match(layout, /FRET \/ STEP/);
-  assert.match(trainer, /INPUT LEVEL/);
-  assert.match(trainer, /STANDARD TUNING/);
+  assert.match(trainer, /ギター入力レベル/);
+  assert.match(trainer, /TUNER_STRINGS/);
   assert.match(trainer, /inputMode === "tuner"/);
   assert.match(trainer, /firstStrongMinimum/);
   assert.match(trainer, /function playRange/);
@@ -75,4 +75,17 @@ test("keeps the input meter and tuner in the client implementation", async () =>
   assert.match(trainer, /guidedMode/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
+});
+
+test("keeps the video-audited lead strings and the single sticky live monitor", async () => {
+  const trainer = await readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8");
+
+  assert.match(trainer, /const holdString: StringNumber = variation === "low" \? 3 : 2/);
+  assert.match(trainer, /\[1, "note", 3, 10\], \[2, "note", 3, 12\], \[3, "note", 3, 10, 2\]/);
+  assert.match(trainer, /70: \[[\s\S]*?stringNo: 2, text: "7"[\s\S]*?stringNo: 3, text: "4"[\s\S]*?stringNo: 2, text: "8"[\s\S]*?stringNo: 3, text: "5"/);
+  assert.match(trainer, /79: \[[\s\S]*?stringNo: 1, text: "12"[\s\S]*?technique: "full"/);
+  assert.match(trainer, /142: \[[\s\S]*?stringNo: 4, text: "12"[\s\S]*?stringNo: 1, text: "13"/);
+  assert.match(trainer, /148: \[[\s\S]*?stringNo: 1, text: "13"[\s\S]*?stringNo: 3, text: "10"/);
+  assert.equal((trainer.match(/LIVE MONITOR/g) ?? []).length, 1);
+  assert.doesNotMatch(trainer, /input-title|LIVE INPUT|LIVE JUDGE/);
 });
