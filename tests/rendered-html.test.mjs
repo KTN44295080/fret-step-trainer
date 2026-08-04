@@ -33,22 +33,35 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /<title>FRET \/ STEP — 人生オーバー Lead Trainer<\/title>/i);
   assert.match(html, /人生オーバー/);
   assert.match(html, /LEAD ONLY/);
-  assert.match(html, /Amperoで正誤判定/);
+  assert.match(html, /Amperoで正誤判定・チューナー/);
+  assert.match(html, /TAB判定/);
+  assert.match(html, /チューナー/);
+  assert.match(html, /上下6半音/);
   assert.match(html, /66〜81小節 · リード奏法編/);
   assert.match(html, /サビ 34–37/);
+  assert.match(html, /画像ではない、曲全体のTAB譜/);
+  assert.match(html, /動画で通し再生/);
+  assert.match(html, /6LfUfHSIiMw/);
+  assert.match(html, /aria-label="1小節目"/);
+  assert.doesNotMatch(html, /tab-01\.png|tab-screenshots/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/);
 });
 
-test("removes starter preview files and dependencies", async () => {
-  const [page, layout, packageJson] = await Promise.all([
+test("keeps the input meter and tuner in the client implementation", async () => {
+  const [page, layout, trainer, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /<GuitarTrainer \/>/);
   assert.match(layout, /<html lang="ja">/);
   assert.match(layout, /FRET \/ STEP/);
+  assert.match(trainer, /INPUT LEVEL/);
+  assert.match(trainer, /STANDARD TUNING/);
+  assert.match(trainer, /inputMode === "tuner"/);
+  assert.match(trainer, /firstStrongMinimum/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
 });

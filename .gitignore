@@ -41,3 +41,6 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# local transcription references (never deployed)
+/reference/tab-screenshots/

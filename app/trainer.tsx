@@ -14,6 +14,12 @@ type TabEvent = {
   duration?: number;
 };
 
+type ScoreGlyph = {
+  slot: number;
+  symbols: Array<{ stringNo: StringNumber; text: string }>;
+  technique?: "sl." | "H" | "full" | "harm." | "tie";
+};
+
 function alternatingMeasure(measure: number): TabEvent[] {
   return [
     { id: `m${measure}-n1`, measure, tick: 0, kind: "note", stringNo: 4, fret: 9 },
@@ -190,6 +196,220 @@ const OUTRO_TECHNIQUE_MEASURES = [
   { measure: 148, sequence: "休 → 13/10 ｜ 休 → 13/10 → 13/10 → 13/10", focus: "最後の2音フレーズ" },
 ];
 
+const TECHNIQUE_TAB_GLYPHS: Record<number, ScoreGlyph[]> = {
+  66: [
+    { slot: 8, symbols: [{ stringNo: 3, text: "7" }, { stringNo: 4, text: "7" }] },
+    { slot: 12, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
+    { slot: 14, symbols: [{ stringNo: 4, text: "7" }], technique: "tie" },
+  ],
+  67: [
+    { slot: 0, symbols: [{ stringNo: 4, text: "(7)" }] },
+    { slot: 2, symbols: [{ stringNo: 4, text: "9" }] },
+    { slot: 8, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
+    { slot: 10, symbols: [{ stringNo: 4, text: "7" }] },
+    { slot: 14, symbols: [{ stringNo: 4, text: "9" }] },
+  ],
+  68: [
+    { slot: 2, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
+    { slot: 4, symbols: [{ stringNo: 4, text: "7" }] },
+    { slot: 10, symbols: [{ stringNo: 4, text: "7" }] },
+    { slot: 12, symbols: [{ stringNo: 3, text: "10" }] },
+    { slot: 14, symbols: [{ stringNo: 3, text: "9" }], technique: "tie" },
+  ],
+  69: [
+    { slot: 0, symbols: [{ stringNo: 3, text: "(9)" }] },
+    { slot: 2, symbols: [{ stringNo: 3, text: "7" }] },
+    { slot: 6, symbols: [{ stringNo: 3, text: "×" }] },
+    { slot: 8, symbols: [{ stringNo: 3, text: "7" }] },
+    { slot: 10, symbols: [{ stringNo: 3, text: "9" }] },
+    { slot: 12, symbols: [{ stringNo: 2, text: "7" }] },
+    { slot: 14, symbols: [{ stringNo: 2, text: "10" }] },
+  ],
+  70: [
+    { slot: 0, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
+    { slot: 2, symbols: [{ stringNo: 2, text: "12" }, { stringNo: 3, text: "9" }] },
+    { slot: 4, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
+    { slot: 6, symbols: [{ stringNo: 2, text: "10" }, { stringNo: 3, text: "7" }] },
+    { slot: 8, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
+    { slot: 10, symbols: [{ stringNo: 3, text: "7" }] },
+    { slot: 12, symbols: [{ stringNo: 3, text: "9" }] },
+    { slot: 14, symbols: [{ stringNo: 3, text: "7" }] },
+  ],
+  71: [
+    { slot: 0, symbols: [{ stringNo: 3, text: "(7)" }] },
+    { slot: 2, symbols: [{ stringNo: 3, text: "9" }] },
+    { slot: 4, symbols: [{ stringNo: 3, text: "×" }] },
+    { slot: 6, symbols: [{ stringNo: 3, text: "11" }] },
+    { slot: 8, symbols: [{ stringNo: 3, text: "×" }] },
+    { slot: 10, symbols: [{ stringNo: 3, text: "7" }] },
+    { slot: 12, symbols: [{ stringNo: 3, text: "7" }] },
+    { slot: 14, symbols: [{ stringNo: 3, text: "×" }] },
+  ],
+  72: [
+    { slot: 0, symbols: [{ stringNo: 3, text: "×" }] },
+    { slot: 2, symbols: [{ stringNo: 3, text: "×" }] },
+    { slot: 4, symbols: [{ stringNo: 2, text: "12" }] },
+    { slot: 6, symbols: [{ stringNo: 2, text: "×" }] },
+    { slot: 7, symbols: [{ stringNo: 2, text: "×" }] },
+    { slot: 8, symbols: [{ stringNo: 2, text: "12" }] },
+    { slot: 10, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 12, symbols: [{ stringNo: 3, text: "12" }] },
+    { slot: 14, symbols: [{ stringNo: 3, text: "11" }] },
+  ],
+  73: [
+    { slot: 3, symbols: [{ stringNo: 3, text: "7" }] },
+    { slot: 5, symbols: [{ stringNo: 3, text: "9" }] },
+    { slot: 8, symbols: [{ stringNo: 2, text: "9" }] },
+    { slot: 10, symbols: [{ stringNo: 2, text: "11" }], technique: "sl." },
+    { slot: 12, symbols: [{ stringNo: 2, text: "9" }] },
+    { slot: 14, symbols: [{ stringNo: 3, text: "7" }] },
+  ],
+  74: [
+    { slot: 0, symbols: [{ stringNo: 3, text: "7" }] },
+    { slot: 4, symbols: [{ stringNo: 3, text: "×" }] },
+    { slot: 5, symbols: [{ stringNo: 3, text: "×" }] },
+    { slot: 6, symbols: [{ stringNo: 3, text: "7" }] },
+    { slot: 9, symbols: [{ stringNo: 3, text: "×" }] },
+    { slot: 10, symbols: [{ stringNo: 3, text: "×" }] },
+    { slot: 11, symbols: [{ stringNo: 3, text: "7" }] },
+    { slot: 15, symbols: [{ stringNo: 2, text: "12" }, { stringNo: 3, text: "11" }] },
+  ],
+  75: [
+    { slot: 0, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
+    { slot: 1, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
+    { slot: 2, symbols: [{ stringNo: 2, text: "12" }, { stringNo: 3, text: "11" }] },
+    { slot: 5, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
+    { slot: 6, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
+    { slot: 7, symbols: [{ stringNo: 2, text: "12" }, { stringNo: 3, text: "11" }] },
+    { slot: 10, symbols: [{ stringNo: 2, text: "12" }, { stringNo: 3, text: "11" }] },
+  ],
+  76: [
+    { slot: 0, symbols: [{ stringNo: 3, text: "7" }, { stringNo: 4, text: "7" }] },
+    { slot: 4, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
+    { slot: 5, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
+    { slot: 6, symbols: [{ stringNo: 3, text: "7" }, { stringNo: 4, text: "7" }] },
+    { slot: 9, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
+    { slot: 10, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
+    { slot: 11, symbols: [{ stringNo: 3, text: "7" }, { stringNo: 4, text: "7" }] },
+  ],
+  77: [
+    { slot: 8, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
+    { slot: 9, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
+    { slot: 10, symbols: [{ stringNo: 3, text: "10" }, { stringNo: 4, text: "10" }] },
+    { slot: 11, symbols: [{ stringNo: 3, text: "12" }, { stringNo: 4, text: "12" }], technique: "sl." },
+    { slot: 12, symbols: [{ stringNo: 3, text: "10" }, { stringNo: 4, text: "10" }] },
+  ],
+  78: [
+    { slot: 0, symbols: [{ stringNo: 3, text: "7" }, { stringNo: 4, text: "7" }] },
+    { slot: 4, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
+    { slot: 5, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
+    { slot: 6, symbols: [{ stringNo: 3, text: "7" }, { stringNo: 4, text: "7" }] },
+    { slot: 10, symbols: [{ stringNo: 3, text: "7" }] },
+    { slot: 12, symbols: [{ stringNo: 3, text: "9" }] },
+    { slot: 14, symbols: [{ stringNo: 3, text: "7" }] },
+  ],
+  79: [
+    { slot: 2, symbols: [{ stringNo: 2, text: "12" }] },
+    { slot: 4, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 6, symbols: [{ stringNo: 2, text: "12" }] },
+    { slot: 8, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 10, symbols: [{ stringNo: 2, text: "12" }], technique: "full" },
+  ],
+  80: [
+    { slot: 0, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 6, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 7, symbols: [{ stringNo: 2, text: "12" }], technique: "H" },
+    { slot: 8, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 10, symbols: [{ stringNo: 2, text: "×" }] },
+    { slot: 11, symbols: [{ stringNo: 2, text: "7" }] },
+    { slot: 13, symbols: [{ stringNo: 3, text: "9" }] },
+    { slot: 15, symbols: [{ stringNo: 3, text: "7" }] },
+  ],
+  81: [
+    { slot: 0, symbols: [{ stringNo: 2, text: "10" }, { stringNo: 3, text: "7" }] },
+    { slot: 4, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
+    { slot: 5, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
+    { slot: 6, symbols: [{ stringNo: 2, text: "10" }, { stringNo: 3, text: "7" }] },
+    { slot: 9, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
+    { slot: 10, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 3, text: "×" }] },
+    { slot: 11, symbols: [{ stringNo: 2, text: "10" }, { stringNo: 3, text: "7" }] },
+  ],
+  114: [
+    { slot: 0, symbols: [{ stringNo: 2, text: "14" }, { stringNo: 3, text: "11" }] },
+    { slot: 4, symbols: [{ stringNo: 2, text: "14" }, { stringNo: 3, text: "11" }] },
+    { slot: 8, symbols: [{ stringNo: 2, text: "14" }, { stringNo: 3, text: "11" }] },
+    { slot: 10, symbols: [{ stringNo: 2, text: "14" }, { stringNo: 3, text: "11" }] },
+    { slot: 12, symbols: [{ stringNo: 2, text: "14" }, { stringNo: 3, text: "11" }] },
+    { slot: 14, symbols: [{ stringNo: 2, text: "14" }, { stringNo: 3, text: "11" }] },
+  ],
+  115: [
+    { slot: 4, symbols: [{ stringNo: 2, text: "12" }, { stringNo: 3, text: "9" }] },
+    { slot: 8, symbols: [{ stringNo: 2, text: "12" }, { stringNo: 3, text: "9" }], technique: "tie" },
+  ],
+  116: [
+    { slot: 10, symbols: [{ stringNo: 1, text: "<5>" }, { stringNo: 2, text: "<5>" }, { stringNo: 3, text: "<5>" }, { stringNo: 4, text: "<5>" }], technique: "harm." },
+  ],
+  142: [
+    { slot: 0, symbols: [{ stringNo: 3, text: "(10)" }] }, { slot: 2, symbols: [{ stringNo: 3, text: "12" }] },
+    { slot: 4, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 6, symbols: [{ stringNo: 2, text: "13" }] },
+    { slot: 8, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 10, symbols: [{ stringNo: 3, text: "12" }] },
+    { slot: 12, symbols: [{ stringNo: 3, text: "10" }] }, { slot: 14, symbols: [{ stringNo: 4, text: "12" }] },
+  ],
+  143: [
+    { slot: 0, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 2, symbols: [{ stringNo: 2, text: "13" }] },
+    { slot: 4, symbols: [{ stringNo: 2, text: "12" }] }, { slot: 6, symbols: [{ stringNo: 2, text: "13" }] },
+    { slot: 8, symbols: [{ stringNo: 2, text: "12" }] }, { slot: 10, symbols: [{ stringNo: 2, text: "10" }], technique: "sl." },
+    { slot: 12, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 14, symbols: [{ stringNo: 2, text: "10" }] },
+  ],
+  144: [
+    { slot: 0, symbols: [{ stringNo: 2, text: "(10)" }] }, { slot: 2, symbols: [{ stringNo: 3, text: "12" }] },
+    { slot: 4, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 6, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 14, symbols: [{ stringNo: 2, text: "10" }] },
+  ],
+  145: [
+    { slot: 0, symbols: [{ stringNo: 3, text: "12" }] }, { slot: 2, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 4, symbols: [{ stringNo: 2, text: "13" }] }, { slot: 6, symbols: [{ stringNo: 2, text: "10" }] },
+    { slot: 8, symbols: [{ stringNo: 3, text: "12" }] }, { slot: 10, symbols: [{ stringNo: 3, text: "10" }] },
+    { slot: 12, symbols: [{ stringNo: 4, text: "12" }] }, { slot: 14, symbols: [{ stringNo: 2, text: "10" }], technique: "tie" },
+  ],
+  146: [
+    { slot: 0, symbols: [{ stringNo: 2, text: "(10)" }] }, { slot: 2, symbols: [{ stringNo: 3, text: "12" }] },
+    { slot: 4, symbols: [{ stringNo: 2, text: "10" }] }, { slot: 6, symbols: [{ stringNo: 2, text: "12" }] },
+    { slot: 8, symbols: [{ stringNo: 2, text: "14" }], technique: "sl." }, { slot: 10, symbols: [{ stringNo: 2, text: "13" }] },
+    { slot: 14, symbols: [{ stringNo: 1, text: "17" }] },
+  ],
+  147: [
+    { slot: 0, symbols: [{ stringNo: 1, text: "15" }] }, { slot: 2, symbols: [{ stringNo: 1, text: "13" }] },
+    { slot: 4, symbols: [{ stringNo: 1, text: "12" }] }, { slot: 6, symbols: [{ stringNo: 1, text: "13" }] },
+    { slot: 8, symbols: [{ stringNo: 1, text: "12" }] }, { slot: 10, symbols: [{ stringNo: 2, text: "13" }] },
+    { slot: 12, symbols: [{ stringNo: 2, text: "12" }] }, { slot: 14, symbols: [{ stringNo: 2, text: "13" }] },
+  ],
+  148: [
+    { slot: 4, symbols: [{ stringNo: 2, text: "13" }, { stringNo: 3, text: "10" }] },
+    { slot: 8, symbols: [{ stringNo: 2, text: "13" }, { stringNo: 3, text: "10" }] },
+    { slot: 12, symbols: [{ stringNo: 2, text: "13" }, { stringNo: 3, text: "10" }] },
+    { slot: 14, symbols: [{ stringNo: 2, text: "13" }, { stringNo: 3, text: "10" }] },
+  ],
+};
+
+const SCORE_PAGES = Array.from({ length: Math.ceil(151 / 4) }, (_, page) => {
+  const start = page * 4 + 1;
+  return { start, end: Math.min(151, start + 3), measures: Array.from({ length: Math.min(4, 152 - start) }, (__, index) => start + index) };
+});
+
+const SONG_MAP = [
+  { label: "イントロ", range: "1–17", start: 1, end: 17, kind: "notes" },
+  { label: "休み", range: "18–33", start: 18, end: 33, kind: "rest" },
+  { label: "サビ〜間奏", range: "34–57", start: 34, end: 57, kind: "notes" },
+  { label: "休み", range: "58–65", start: 58, end: 65, kind: "rest" },
+  { label: "奏法", range: "66–81", start: 66, end: 81, kind: "technique" },
+  { label: "後半", range: "82–113", start: 82, end: 113, kind: "notes" },
+  { label: "奏法", range: "114–116", start: 114, end: 116, kind: "technique" },
+  { label: "大サビ", range: "117–141", start: 117, end: 141, kind: "notes" },
+  { label: "Final", range: "142–148", start: 142, end: 148, kind: "technique" },
+  { label: "END", range: "149–151", start: 149, end: 151, kind: "rest" },
+];
+
 const NOTES = TAB_EVENTS.filter(
   (event): event is TabEvent & { stringNo: StringNumber; fret: number } =>
     event.kind === "note" && event.stringNo !== undefined && event.fret !== undefined,
@@ -224,14 +444,39 @@ function noteName(frequency: number) {
   return `${names[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
 }
 
-function detectPitch(buffer: Float32Array, sampleRate: number) {
+function nearestPitch(frequency: number) {
+  const midi = Math.round(69 + 12 * Math.log2(frequency / 440));
+  const targetFrequency = 440 * 2 ** ((midi - 69) / 12);
+  return {
+    name: noteName(targetFrequency),
+    frequency: targetFrequency,
+    cents: 1200 * Math.log2(frequency / targetFrequency),
+  };
+}
+
+const TUNER_STRINGS = [
+  { label: "6弦", name: "E2", frequency: 82.41 },
+  { label: "5弦", name: "A2", frequency: 110 },
+  { label: "4弦", name: "D3", frequency: 146.83 },
+  { label: "3弦", name: "G3", frequency: 196 },
+  { label: "2弦", name: "B3", frequency: 246.94 },
+  { label: "1弦", name: "E4", frequency: 329.63 },
+] as const;
+
+function detectPitch(buffer: Float32Array, sampleRate: number, targetFrequency?: number) {
   let energy = 0;
   for (const sample of buffer) energy += sample * sample;
   const rms = Math.sqrt(energy / buffer.length);
-  if (rms < 0.012) return null;
+  if (rms < 0.004) return null;
 
-  const minimumLag = Math.floor(sampleRate / 1000);
-  const maximumLag = Math.min(Math.floor(sampleRate / 70), Math.floor(buffer.length / 2));
+  const searchRatio = Math.SQRT2;
+  const maximumFrequency = targetFrequency ? targetFrequency * searchRatio : 1100;
+  const minimumFrequency = targetFrequency ? targetFrequency / searchRatio : 65;
+  const minimumLag = Math.max(2, Math.floor(sampleRate / maximumFrequency));
+  const maximumLag = Math.min(
+    Math.ceil(sampleRate / minimumFrequency),
+    Math.floor(buffer.length / 2),
+  );
   const usableLength = buffer.length - maximumLag;
   const difference = new Float32Array(maximumLag + 1);
   const normalized = new Float32Array(maximumLag + 1);
@@ -252,14 +497,37 @@ function detectPitch(buffer: Float32Array, sampleRate: number) {
     normalized[lag] = runningSum === 0 ? 1 : (difference[lag] * lag) / runningSum;
   }
 
-  let bestLag = -1;
-  for (let lag = minimumLag; lag < maximumLag; lag += 1) {
-    if (normalized[lag] < 0.16 && normalized[lag] <= normalized[lag + 1]) {
-      bestLag = lag;
-      break;
+  let bestLag = minimumLag;
+  if (targetFrequency) {
+    for (let lag = minimumLag + 1; lag < maximumLag; lag += 1) {
+      if (normalized[lag] < normalized[bestLag]) bestLag = lag;
+    }
+  } else {
+    let firstStrongMinimum: number | null = null;
+    for (let lag = minimumLag + 1; lag < maximumLag - 1; lag += 1) {
+      if (
+        normalized[lag] < 0.22
+        && normalized[lag] <= normalized[lag - 1]
+        && normalized[lag] < normalized[lag + 1]
+      ) {
+        firstStrongMinimum = lag;
+        break;
+      }
+    }
+    if (firstStrongMinimum !== null) {
+      bestLag = firstStrongMinimum;
+      const octaveLag = firstStrongMinimum * 2;
+      if (
+        octaveLag < maximumLag
+        && normalized[octaveLag] < normalized[firstStrongMinimum] * 0.8
+      ) bestLag = octaveLag;
+    } else {
+      for (let lag = minimumLag + 1; lag < maximumLag; lag += 1) {
+        if (normalized[lag] < normalized[bestLag]) bestLag = lag;
+      }
     }
   }
-  if (bestLag < 0) return null;
+  if (normalized[bestLag] > (targetFrequency ? 0.34 : 0.28)) return null;
 
   const before = normalized[bestLag - 1] ?? normalized[bestLag];
   const center = normalized[bestLag];
@@ -283,7 +551,7 @@ function TabMeasure({
   const events = TAB_EVENTS.filter((event) => event.measure === measure);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-stone-700 bg-stone-900" aria-label={`${measure}小節目`}>
+    <section className="overflow-x-auto rounded-xl border border-stone-700 bg-stone-900" aria-label={`${measure}小節目`}>
       <div className="flex items-center justify-between border-b border-stone-700 px-4 py-2">
         <p className="text-sm font-bold tabular-nums">MEASURE {String(measure).padStart(2, "0")}</p>
         <p className="text-xs text-stone-400">4 / 4</p>
@@ -299,7 +567,7 @@ function TabMeasure({
         ))}
         {events.map((event) => {
           const style = {
-            gridColumn: `${event.tick + 1}`,
+            gridColumn: `${event.tick * 2 + 1}`,
             gridRow: event.stringNo ?? 3,
           };
           if (event.kind === "rest") {
@@ -331,16 +599,115 @@ function TabMeasure({
           );
         })}
       </div>
-      <div className="flex justify-between px-3 py-2 text-[0.7rem] text-stone-500" aria-hidden="true">
-        <span>1弦（細い）</span>
-        <span>6弦（太い）</span>
+      <div className="grid grid-cols-8 border-t border-stone-800 px-2 py-2 text-center text-[0.65rem] font-bold text-stone-500" aria-hidden="true">
+        {['1', '＆', '2', '＆', '3', '＆', '4', '＆'].map((beat, index) => <span key={`${measure}-beat-${index}`}>{beat}</span>)}
       </div>
     </section>
   );
 }
 
+function TechniqueTabMeasure({ measure }: { measure: number }) {
+  const glyphs = TECHNIQUE_TAB_GLYPHS[measure] ?? [];
+  const description = [...TECHNIQUE_MEASURES, ...BRIDGE_TECHNIQUE_MEASURES, ...OUTRO_TECHNIQUE_MEASURES]
+    .find((item) => item.measure === measure);
+
+  return (
+    <section className="overflow-x-auto rounded-xl border border-amber-700/70 bg-stone-900" aria-label={`${measure}小節目、特殊奏法`}>
+      <div className="flex items-center justify-between border-b border-stone-700 px-4 py-2">
+        <p className="text-sm font-bold tabular-nums">MEASURE {String(measure).padStart(2, "0")}</p>
+        <p className="text-xs font-bold text-amber-300">{description?.focus ?? "特殊奏法"}</p>
+      </div>
+      <div className="tab-measure tab-measure-technique">
+        {STRING_RANGE.map((stringNo) => (
+          <div className="tab-string-line" key={`tech-line-${measure}-${stringNo}`} style={{ gridRow: stringNo }} aria-hidden="true" />
+        ))}
+        {glyphs.flatMap((glyph, glyphIndex) => glyph.symbols.map((symbol, symbolIndex) => (
+          <span
+            className="tab-symbol tab-glyph"
+            key={`${measure}-${glyphIndex}-${symbolIndex}`}
+            style={{ gridColumn: `${glyph.slot + 1}`, gridRow: symbol.stringNo }}
+          >
+            {symbol.text}
+          </span>
+        )))}
+        {glyphs.map((glyph, index) => glyph.technique && (
+          <span
+            className="tab-effect"
+            key={`${measure}-effect-${index}`}
+            style={{ left: `${((glyph.slot + 0.5) / 16) * 100}%` }}
+          >
+            {glyph.technique === "tie" ? "⌒" : glyph.technique}
+          </span>
+        ))}
+      </div>
+      <div className="grid grid-cols-8 border-t border-stone-800 px-2 py-2 text-center text-[0.65rem] font-bold text-stone-500" aria-hidden="true">
+        {['1', '＆', '2', '＆', '3', '＆', '4', '＆'].map((beat, index) => <span key={`${measure}-tech-beat-${index}`}>{beat}</span>)}
+      </div>
+    </section>
+  );
+}
+
+function RestTabMeasure({ measure }: { measure: number }) {
+  return (
+    <section className="overflow-x-auto rounded-xl border border-stone-800 bg-stone-950" aria-label={`${measure}小節目、リードは休み`}>
+      <div className="flex items-center justify-between border-b border-stone-800 px-4 py-2">
+        <p className="text-sm font-bold text-stone-500 tabular-nums">MEASURE {String(measure).padStart(2, "0")}</p>
+        <p className="text-xs font-bold text-stone-600">LEAD REST</p>
+      </div>
+      <div className="tab-measure tab-measure-rest">
+        {STRING_RANGE.map((stringNo) => (
+          <div className="tab-string-line" key={`rest-line-${measure}-${stringNo}`} style={{ gridRow: stringNo }} aria-hidden="true" />
+        ))}
+        <span className="tab-whole-rest" aria-hidden="true">━</span>
+      </div>
+      <p className="border-t border-stone-800 px-3 py-2 text-center text-[0.65rem] font-bold text-stone-600">この小節は弾かない</p>
+    </section>
+  );
+}
+
+function ScoreMeasure({
+  measure,
+  currentId,
+  learnedIds,
+  onSelect,
+}: {
+  measure: number;
+  currentId: string;
+  learnedIds: Set<string>;
+  onSelect: (id: string) => void;
+}) {
+  if (TECHNIQUE_TAB_GLYPHS[measure]) return <TechniqueTabMeasure measure={measure} />;
+  if (TAB_EVENTS.some((event) => event.measure === measure)) {
+    return <TabMeasure measure={measure} currentId={currentId} learnedIds={learnedIds} onSelect={onSelect} />;
+  }
+  return <RestTabMeasure measure={measure} />;
+}
+
+function SongMap({ currentMeasure, onJump }: { currentMeasure: number; onJump: (measure: number) => void }) {
+  return (
+    <div className="song-map" aria-label="曲全体の構成">
+      {SONG_MAP.map((part) => (
+        <button
+          className="song-map-part"
+          data-active={currentMeasure >= part.start && currentMeasure <= part.end}
+          data-kind={part.kind}
+          key={`${part.start}-${part.end}`}
+          onClick={() => onJump(part.start)}
+          style={{ flexGrow: part.end - part.start + 1 }}
+          type="button"
+        >
+          <span>{part.label}</span>
+          <small>{part.range}</small>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function GuitarTrainer() {
   const [noteIndex, setNoteIndex] = useState(0);
+  const [scorePageIndex, setScorePageIndex] = useState(0);
+  const [videoStart, setVideoStart] = useState<0 | 215>(215);
   const [bpm, setBpm] = useState(85);
   const [playing, setPlaying] = useState(false);
   const [countIn, setCountIn] = useState(true);
@@ -349,7 +716,9 @@ export function GuitarTrainer() {
   const [inputEnabled, setInputEnabled] = useState(false);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
+  const [inputMode, setInputMode] = useState<"judge" | "tuner">("judge");
   const [detectedFrequency, setDetectedFrequency] = useState<number | null>(null);
+  const [inputLevel, setInputLevel] = useState(0);
   const [detectedCents, setDetectedCents] = useState<number | null>(null);
   const [pitchMatched, setPitchMatched] = useState(false);
   const [inputError, setInputError] = useState("");
@@ -358,6 +727,7 @@ export function GuitarTrainer() {
   const timerIdsRef = useRef<number[]>([]);
   const inputStreamRef = useRef<MediaStream | null>(null);
   const inputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const inputFilterRef = useRef<BiquadFilterNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
 
   const currentNote = NOTES[noteIndex];
@@ -371,21 +741,34 @@ export function GuitarTrainer() {
     ? [9, 10, 11, 12, 13]
     : [5, 6, 7, 8, 9];
   const tunerOffset = Math.max(-50, Math.min(50, detectedCents ?? 0)) * 1.4;
-  const tunerMessage = playing
-    ? "お手本再生中は判定を待機"
-    : pitchMatched
-      ? "正解！ 音程が合っています"
-      : detectedCents === null
-        ? "1音だけ鳴らしてください"
-        : detectedCents < -30
-          ? "少し低いです"
-          : detectedCents > 30
-            ? "少し高いです"
-            : "その音です。少しキープ";
+  const nearestDetectedPitch = detectedFrequency ? nearestPitch(detectedFrequency) : null;
+  const displayTargetFrequency = inputMode === "judge"
+    ? targetFrequency
+    : nearestDetectedPitch?.frequency ?? null;
+  const tunerMessage = inputMode === "tuner"
+    ? detectedCents === null
+      ? "開放弦を1本だけ鳴らしてください"
+      : pitchMatched
+        ? "チューニングOK"
+        : detectedCents < -5
+          ? "低い — ペグを少し締める"
+          : "高い — ペグを少し緩める"
+    : playing
+      ? "お手本再生中は判定を待機"
+      : pitchMatched
+        ? "正解！ 音程が合っています"
+        : detectedCents === null
+          ? "1音だけ鳴らしてください"
+          : detectedCents < -30
+            ? "少し低いです"
+            : detectedCents > 30
+              ? "少し高いです"
+              : "その音です。少しキープ";
   const currentMeasureNotes = useMemo(
     () => NOTES.filter((note) => note.measure === currentNote.measure),
     [currentNote.measure],
   );
+  const selectedScorePage = SCORE_PAGES[scorePageIndex];
 
   const clearTimers = useCallback(() => {
     timerIdsRef.current.forEach((timerId) => window.clearTimeout(timerId));
@@ -402,10 +785,15 @@ export function GuitarTrainer() {
       clearTimers();
       inputStreamRef.current?.getTracks().forEach((track) => track.stop());
       inputSourceRef.current?.disconnect();
+      inputFilterRef.current?.disconnect();
       analyserRef.current?.disconnect();
       void audioContextRef.current?.close();
     };
   }, [clearTimers]);
+
+  useEffect(() => {
+    setScorePageIndex(Math.floor((currentNote.measure - 1) / 4));
+  }, [currentNote.measure]);
 
   useEffect(() => {
     const analyser = analyserRef.current;
@@ -420,17 +808,29 @@ export function GuitarTrainer() {
     const analyze = () => {
       if (cancelled) return;
       analyser.getFloatTimeDomainData(buffer);
-      const frequency = detectPitch(buffer, analyser.context.sampleRate);
+      let energy = 0;
+      for (const sample of buffer) energy += sample * sample;
+      const rms = Math.sqrt(energy / buffer.length);
+      setInputLevel(Math.min(1, rms * 8));
+      const frequency = detectPitch(
+        buffer,
+        analyser.context.sampleRate,
+        inputMode === "judge" ? targetFrequency : undefined,
+      );
 
       if (frequency) {
-        const cents = 1200 * Math.log2(frequency / targetFrequency);
-        const isCorrect = Math.abs(cents) <= 30 && !playing;
+        const pitch = nearestPitch(frequency);
+        const cents = inputMode === "judge"
+          ? 1200 * Math.log2(frequency / targetFrequency)
+          : pitch.cents;
+        const isCorrect = Math.abs(cents) <= (inputMode === "judge" ? 30 : 5)
+          && (inputMode === "tuner" || !playing);
         setDetectedFrequency(frequency);
         setDetectedCents(cents);
         correctFrames = isCorrect ? correctFrames + 1 : 0;
         setPitchMatched(correctFrames >= 4);
 
-        if (autoAdvance && correctFrames >= 8 && !advanced) {
+        if (inputMode === "judge" && autoAdvance && correctFrames >= 8 && !advanced) {
           advanced = true;
           setLearnedIds((previous) => new Set(previous).add(currentNote.id));
           if (noteIndex < NOTES.length - 1) setNoteIndex(noteIndex + 1);
@@ -450,7 +850,7 @@ export function GuitarTrainer() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [autoAdvance, currentNote.fret, currentNote.id, currentNote.stringNo, inputEnabled, noteIndex, playing, selectedDeviceId, targetFrequency]);
+  }, [autoAdvance, currentNote.fret, currentNote.id, currentNote.stringNo, inputEnabled, inputMode, noteIndex, playing, selectedDeviceId, targetFrequency]);
 
   function getAudioContext() {
     if (!audioContextRef.current) {
@@ -468,6 +868,7 @@ export function GuitarTrainer() {
 
     inputStreamRef.current?.getTracks().forEach((track) => track.stop());
     inputSourceRef.current?.disconnect();
+    inputFilterRef.current?.disconnect();
     analyserRef.current?.disconnect();
 
     try {
@@ -484,12 +885,18 @@ export function GuitarTrainer() {
       await context.resume();
       const source = context.createMediaStreamSource(stream);
       const analyser = context.createAnalyser();
+      const filter = context.createBiquadFilter();
+      filter.type = "highpass";
+      filter.frequency.value = 45;
+      filter.Q.value = 0.7;
       analyser.fftSize = 4096;
       analyser.smoothingTimeConstant = 0;
-      source.connect(analyser);
+      source.connect(filter);
+      filter.connect(analyser);
 
       inputStreamRef.current = stream;
       inputSourceRef.current = source;
+      inputFilterRef.current = filter;
       analyserRef.current = analyser;
       const devices = (await navigator.mediaDevices.enumerateDevices()).filter(
         (device) => device.kind === "audioinput",
@@ -511,12 +918,15 @@ export function GuitarTrainer() {
   function disconnectInput() {
     inputStreamRef.current?.getTracks().forEach((track) => track.stop());
     inputSourceRef.current?.disconnect();
+    inputFilterRef.current?.disconnect();
     analyserRef.current?.disconnect();
     inputStreamRef.current = null;
     inputSourceRef.current = null;
+    inputFilterRef.current = null;
     analyserRef.current = null;
     setInputEnabled(false);
     setDetectedFrequency(null);
+    setInputLevel(0);
     setDetectedCents(null);
     setPitchMatched(false);
   }
@@ -627,6 +1037,13 @@ export function GuitarTrainer() {
     if (nextIndex >= 0) setNoteIndex(nextIndex);
   }
 
+  function jumpScoreTo(measure: number) {
+    stopPlayback();
+    setScorePageIndex(Math.floor((measure - 1) / 4));
+    const exactIndex = NOTES.findIndex((note) => note.measure === measure);
+    if (exactIndex >= 0) setNoteIndex(exactIndex);
+  }
+
   function toggleLearned() {
     setLearnedIds((previous) => {
       const next = new Set(previous);
@@ -667,6 +1084,73 @@ export function GuitarTrainer() {
 
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:px-8">
         <div className="min-w-0 space-y-6">
+          <section className="rounded-2xl border border-stone-800 bg-stone-900 p-4 sm:p-6" aria-labelledby="song-map-title">
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-bold text-lime-300">SONG MAP</p>
+                <h2 id="song-map-title" className="mt-1 text-balance text-2xl font-black">曲のどこを弾いているか</h2>
+              </div>
+              <p className="text-pretty text-sm text-stone-400">緑 = 単音TAB / 黄 = 特殊奏法 / 暗色 = リード休み</p>
+            </div>
+            <SongMap currentMeasure={selectedScorePage.start} onJump={jumpScoreTo} />
+          </section>
+
+          <section className="overflow-hidden rounded-2xl border border-stone-800 bg-stone-900" aria-labelledby="video-title">
+            <div className="flex flex-col gap-4 border-b border-stone-800 p-4 sm:flex-row sm:items-end sm:justify-between sm:p-5">
+              <div>
+                <p className="text-sm font-bold text-lime-300">PLAY THROUGH</p>
+                <h2 id="video-title" className="mt-1 text-balance text-2xl font-black">動画で通し再生</h2>
+                <p className="mt-2 text-pretty text-sm text-stone-400">同じ動画を画面内で再生。TAB表示の始まる3:35へ直接移動できます。</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={videoStart === 0} onClick={() => setVideoStart(0)} type="button">演奏 0:00</button>
+                <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={videoStart === 215} onClick={() => setVideoStart(215)} type="button">TAB 3:35</button>
+              </div>
+            </div>
+            <div className="video-frame">
+              <iframe
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                key={videoStart}
+                loading="lazy"
+                src={`https://www.youtube-nocookie.com/embed/6LfUfHSIiMw?start=${videoStart}&rel=0`}
+                title="人生オーバー harha Guitar TAB 動画"
+              />
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-stone-700 bg-stone-900 p-4 shadow-xl sm:p-6" aria-labelledby="full-score-title">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-bold text-lime-300">PROCEDURAL TAB</p>
+                <h2 id="full-score-title" className="mt-1 text-balance text-2xl font-black">画像ではない、曲全体のTAB譜</h2>
+                <p className="mt-2 max-w-2xl text-pretty text-sm text-stone-400">6本の線・数字・拍・奏法記号をデータから描画しています。数字は「弦を上から数えた位置」と「押さえるフレット」です。</p>
+              </div>
+              <label className="grid gap-1 text-xs font-bold text-stone-400">
+                小節へ移動
+                <select
+                  className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-3 text-sm font-bold text-stone-100"
+                  onChange={(event) => setScorePageIndex(Number(event.target.value))}
+                  value={scorePageIndex}
+                >
+                  {SCORE_PAGES.map((page, index) => <option value={index} key={page.start}>{page.start}〜{page.end}小節</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-5 grid gap-4 xl:grid-cols-2">
+              {selectedScorePage.measures.map((measure) => (
+                <ScoreMeasure measure={measure} currentId={currentNote.id} learnedIds={learnedIds} onSelect={selectNote} key={measure} />
+              ))}
+            </div>
+
+            <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === 0} onClick={() => setScorePageIndex((index) => Math.max(0, index - 1))} type="button">← 前の4小節</button>
+              <p className="px-2 text-center text-sm font-black tabular-nums">{selectedScorePage.start}–{selectedScorePage.end}</p>
+              <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === SCORE_PAGES.length - 1} onClick={() => setScorePageIndex((index) => Math.min(SCORE_PAGES.length - 1, index + 1))} type="button">次の4小節 →</button>
+            </div>
+          </section>
+
           <section className="overflow-hidden rounded-2xl border border-stone-700 bg-stone-900 shadow-xl" aria-labelledby="current-note-title">
             <div className="flex flex-col gap-6 border-b border-stone-700 p-5 sm:p-7">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -870,11 +1354,16 @@ export function GuitarTrainer() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-bold text-lime-300">LIVE INPUT</p>
-                <h2 id="input-title" className="mt-1 text-balance text-xl font-black">Amperoで正誤判定</h2>
+                <h2 id="input-title" className="mt-1 text-balance text-xl font-black">Amperoで正誤判定・チューナー</h2>
               </div>
               <span className="rounded-full border border-stone-700 px-2.5 py-1 text-xs font-bold text-stone-400">
                 {inputEnabled ? "接続中" : "未接続"}
               </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-stone-950 p-1" aria-label="入力モード">
+              <button className="min-h-11 rounded-lg px-3 text-sm font-black data-[active=true]:bg-lime-300 data-[active=true]:text-lime-950" data-active={inputMode === "judge"} type="button" onClick={() => setInputMode("judge")}>TAB判定</button>
+              <button className="min-h-11 rounded-lg px-3 text-sm font-black data-[active=true]:bg-lime-300 data-[active=true]:text-lime-950" data-active={inputMode === "tuner"} type="button" onClick={() => setInputMode("tuner")}>チューナー</button>
             </div>
 
             {!inputEnabled ? (
@@ -901,11 +1390,24 @@ export function GuitarTrainer() {
                   </select>
                 </label>
 
+                <div className="rounded-xl border border-stone-700 bg-stone-950 p-3">
+                  <div className="flex items-center justify-between gap-3 text-xs font-bold">
+                    <span className="text-stone-500">INPUT LEVEL</span>
+                    <span className="tabular-nums text-stone-300">
+                      {inputLevel < 0.06 ? "小さい" : inputLevel > 0.82 ? "大きい" : "適正"} · {Math.round(inputLevel * 100)}%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-800" role="meter" aria-label="ギター入力レベル" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(inputLevel * 100)}>
+                    <div className="input-level-fill h-full rounded-full bg-lime-300" style={{ "--input-level": `${inputLevel * 100}%` } as React.CSSProperties} />
+                  </div>
+                  <p className="mt-2 text-pretty text-[0.7rem] text-stone-500">高音弦もピッキング時に10%以上振れれば入力できています。</p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2 text-center">
                   <div className="rounded-xl bg-stone-950 p-3">
-                    <p className="text-xs font-bold text-stone-500">ねらう音</p>
-                    <p className="mt-1 text-2xl font-black tabular-nums">{noteName(targetFrequency)}</p>
-                    <p className="text-xs text-stone-500 tabular-nums">{targetFrequency.toFixed(1)} Hz</p>
+                    <p className="text-xs font-bold text-stone-500">{inputMode === "judge" ? "ねらう音" : "最寄りの基準音"}</p>
+                    <p className="mt-1 text-2xl font-black tabular-nums">{displayTargetFrequency ? noteName(displayTargetFrequency) : "—"}</p>
+                    <p className="text-xs text-stone-500 tabular-nums">{displayTargetFrequency ? `${displayTargetFrequency.toFixed(1)} Hz` : "音を待っています"}</p>
                   </div>
                   <div className="rounded-xl bg-stone-950 p-3">
                     <p className="text-xs font-bold text-stone-500">入力された音</p>
@@ -913,6 +1415,21 @@ export function GuitarTrainer() {
                     <p className="text-xs text-stone-500 tabular-nums">{detectedFrequency ? `${detectedFrequency.toFixed(1)} Hz` : "音を待っています"}</p>
                   </div>
                 </div>
+
+                {inputMode === "tuner" && (
+                  <div>
+                    <p className="mb-2 text-xs font-bold text-stone-500">STANDARD TUNING · カポを外して確認</p>
+                    <div className="grid grid-cols-3 gap-2" aria-label="標準チューニングの開放弦">
+                      {TUNER_STRINGS.map((string) => (
+                        <div className="rounded-lg border border-stone-800 bg-stone-950 px-2 py-2 text-center" key={string.label}>
+                          <p className="text-[0.65rem] font-bold text-stone-500">{string.label}</p>
+                          <p className="font-black">{string.name}</p>
+                          <p className="text-[0.62rem] tabular-nums text-stone-600">{string.frequency.toFixed(1)}Hz</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="rounded-xl border border-stone-700 bg-stone-950 p-4" data-correct={pitchMatched}>
                   <div className="flex justify-between text-[0.68rem] font-bold text-stone-500"><span>低い</span><span>合ってる</span><span>高い</span></div>
@@ -924,16 +1441,18 @@ export function GuitarTrainer() {
                   {detectedCents !== null && <p className="mt-1 text-center text-xs text-stone-500 tabular-nums">{detectedCents > 0 ? "+" : ""}{detectedCents.toFixed(0)} cents</p>}
                 </div>
 
-                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-bold">
-                  <input className="size-5" type="checkbox" checked={autoAdvance} onChange={(event) => setAutoAdvance(event.target.checked)} />
-                  正解したら自動で次の音へ
-                </label>
+                {inputMode === "judge" && (
+                  <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-bold">
+                    <input className="size-5" type="checkbox" checked={autoAdvance} onChange={(event) => setAutoAdvance(event.target.checked)} />
+                    正解したら自動で次の音へ
+                  </label>
+                )}
                 <button className="min-h-11 w-full rounded-xl border border-stone-700 text-sm font-bold text-stone-300 hover:bg-stone-800" type="button" onClick={disconnectInput}>入力を切る</button>
               </div>
             )}
 
             {inputError && <p className="mt-3 rounded-lg border border-red-900 bg-red-950 p-3 text-pretty text-sm text-red-200" role="alert">{inputError}</p>}
-            <p className="mt-4 text-pretty text-xs text-stone-500">判定時はAmperoをクリーン音にして、1音だけ鳴らしてください。歪み・和音・スピーカーからのお手本音は誤判定の原因になります。</p>
+            <p className="mt-4 text-pretty text-xs text-stone-500">{inputMode === "judge" ? "TAB判定は「ねらう音」の上下6半音だけを解析し、低い倍音への誤反応を避けます。" : "チューナーはE2〜E4を含むクロマチック判定です。まずカポを外し、開放弦を1本ずつ鳴らします。"} Amperoはクリーン音にしてください。</p>
           </section>
 
           <section className="rounded-2xl border border-stone-800 bg-stone-900 p-5" aria-labelledby="tempo-title">
