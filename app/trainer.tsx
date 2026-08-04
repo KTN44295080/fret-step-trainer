@@ -1,6 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  centsBetween,
+  clamp,
+  frequencyFor,
+  nearestPlaybackRate,
+  playbackPositionSteps,
+  positionToMeasure,
+  videoTimeForPosition,
+} from "./trainer-core.mjs";
 
 type StringNumber = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -19,6 +28,10 @@ type ScoreGlyph = {
   symbols: Array<{ stringNo: StringNumber; text: string }>;
   technique?: "sl." | "H" | "full" | "harm." | "tie";
 };
+
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 function alternatingMeasure(measure: number): TabEvent[] {
   return [
@@ -65,7 +78,7 @@ function chorusAnswer(
   measure: number,
   variation: "high" | "low" | "ending",
 ): TabEvent[] {
-  const holdString: StringNumber = variation === "low" ? 3 : 2;
+  const holdString: StringNumber = variation === "low" ? 1 : 2;
   const middle: Array<[number, "note" | "rest", StringNumber?, number?, number?]> =
     variation === "high"
       ? [
@@ -74,8 +87,8 @@ function chorusAnswer(
         ]
       : variation === "low"
         ? [
-            [1, "note", 3, 10], [2, "note", 3, 12], [3, "note", 3, 10, 2],
-            [5, "note", 3, 10], [6, "note", 3, 10, 2],
+            [1, "note", 1, 10], [2, "note", 1, 12], [3, "note", 1, 10, 2],
+            [5, "note", 1, 10], [6, "note", 1, 10, 2],
           ]
         : [
             [1, "note", 2, 10], [2, "rest"], [3, "note", 2, 9, 2],
@@ -700,17 +713,17 @@ const SONGS = {
         label: "リードギター",
         badge: "LEAD",
         videoId: "85ORTRtwmF4",
-        videoStartSeconds: 0,
-        videoStartLabel: "TAB 0:00",
-        description: "送ってもらったリード動画を5秒ごとにキャプチャして、207小節の休符・単音・ベンド・スライド・ミュート区間を練習用データ譜にしました。",
+        videoStartSeconds: 1.2,
+        videoStartLabel: "TAB 約0:01",
+        description: "送ってもらったリード動画の207小節構成を元にした暫定データ譜です。休符と主要区間は確認済みですが、弦・フレット・奏法は小節ごとに動画監査を進めています。",
       },
       backing: {
         label: "リズムギター（バッキング）",
         badge: "BACKING",
         videoId: "vPexB7CEMGY",
-        videoStartSeconds: 0,
-        videoStartLabel: "TAB 0:00",
-        description: "バッキング動画を5秒ごとにキャプチャして終端207小節と主要コード／リズムを確認。練習用データ譜とまとめ再生に共通利用します。",
+        videoStartSeconds: 1,
+        videoStartLabel: "TAB 約0:01",
+        description: "バッキング動画の207小節構成と冒頭を実フレームで確認した暫定データ譜です。主要コード／リズムの全小節照合が終わるまでは監査中として表示します。",
       },
     },
   },
@@ -734,7 +747,7 @@ type PlaybackSession = {
   scheduledAt: number;
 };
 
-type PlaybackPreset = "page" | "section" | "full" | "remaining";
+type PlaybackPreset = "page" | "section" | "full" | "remaining" | "loop";
 
 function parseFretSymbol(text: string) {
   if (text.includes("×") || text.startsWith("(")) return null;
@@ -754,6 +767,17 @@ function notesForTrack(songId: SongId, trackId: TrackId) {
   if (songId === "life-over") return LIFE_BACKING_NOTES;
   if (trackId === "lead") return MADOW_LEAD_NOTES;
   return MADOW_BACKING_NOTES;
+}
+
+function scoreAuditStatus(songId: SongId, trackId: TrackId, measure: number) {
+  if (songId === "life-over" && trackId === "lead") {
+    const coveredByProvidedScreenshot = measure <= 20 || measure >= 34;
+    return coveredByProvidedScreenshot
+      ? { label: "スクショ照合", tone: "verified" as const }
+      : { label: "休符区間・要確認", tone: "draft" as const };
+  }
+  if (songId === "life-over") return { label: "提供スクショ参照", tone: "verified" as const };
+  return { label: "動画から暫定生成", tone: "draft" as const };
 }
 
 function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number): PlaybackEvent[] {
@@ -785,7 +809,7 @@ function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number):
 }
 
 function videoTimeForMeasure(song: (typeof SONGS)[SongId], track: (typeof SONGS)[SongId]["tracks"][TrackId], measure: number) {
-  return Math.round(track.videoStartSeconds + ((measure - 1) * 4 * 60) / song.originalBpm);
+  return Math.round(videoTimeForPosition(track.videoStartSeconds, song.originalBpm, measure));
 }
 
 function formatClock(totalSeconds: number) {
@@ -798,7 +822,6 @@ function rangeDuration(startMeasure: number, endMeasure: number, bpm: number) {
 }
 
 const STRING_RANGE: StringNumber[] = [1, 2, 3, 4, 5, 6];
-const OPEN_STRING_MIDI = [0, 64, 59, 55, 50, 45, 40];
 
 function fingerHint(fret: number) {
   if (fret === 0) return "開放弦。左手は触れず、隣の弦を鳴らさないように弾く";
@@ -817,10 +840,6 @@ function stringDescription(stringNo: StringNumber) {
   return `${stringNo}弦`;
 }
 
-function frequencyFor(stringNo: StringNumber, fret: number) {
-  const midi = OPEN_STRING_MIDI[stringNo] + 3 + fret;
-  return 440 * 2 ** ((midi - 69) / 12);
-}
 
 function noteName(frequency: number) {
   const names = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
@@ -834,24 +853,24 @@ function nearestPitch(frequency: number) {
   return {
     name: noteName(targetFrequency),
     frequency: targetFrequency,
-    cents: 1200 * Math.log2(frequency / targetFrequency),
+    cents: centsBetween(frequency, targetFrequency),
   };
 }
 
 const TUNER_STRINGS = [
-  { label: "6弦", name: "E2", frequency: 82.41 },
-  { label: "5弦", name: "A2", frequency: 110 },
-  { label: "4弦", name: "D3", frequency: 146.83 },
-  { label: "3弦", name: "G3", frequency: 196 },
-  { label: "2弦", name: "B3", frequency: 246.94 },
-  { label: "1弦", name: "E4", frequency: 329.63 },
+  { stringNo: 6 as const, label: "6弦", name: "E2", frequency: 82.41 },
+  { stringNo: 5 as const, label: "5弦", name: "A2", frequency: 110 },
+  { stringNo: 4 as const, label: "4弦", name: "D3", frequency: 146.83 },
+  { stringNo: 3 as const, label: "3弦", name: "G3", frequency: 196 },
+  { stringNo: 2 as const, label: "2弦", name: "B3", frequency: 246.94 },
+  { stringNo: 1 as const, label: "1弦", name: "E4", frequency: 329.63 },
 ] as const;
 
-function detectPitch(buffer: Float32Array, sampleRate: number, targetFrequency?: number) {
+function detectPitch(buffer: Float32Array, sampleRate: number, targetFrequency?: number, rmsThreshold = 0.004) {
   let energy = 0;
   for (const sample of buffer) energy += sample * sample;
   const rms = Math.sqrt(energy / buffer.length);
-  if (rms < 0.004) return null;
+  if (rms < rmsThreshold) return null;
 
   const searchRatio = Math.SQRT2;
   const maximumFrequency = targetFrequency ? targetFrequency * searchRatio : 1100;
@@ -1048,7 +1067,7 @@ function ProceduralTabMeasure({
         <p className="text-sm font-bold tabular-nums">MEASURE {String(measure).padStart(3, "0")}</p>
         <p className="text-xs font-bold text-lime-300">{hasNotes ? label.toUpperCase() : "REST"}</p>
       </div>
-      <div className={`tab-measure ${hasNotes ? "tab-measure-technique" : "tab-measure-rest"}`}>
+      <div className={cn("tab-measure", hasNotes ? "tab-measure-technique" : "tab-measure-rest")}>
         {STRING_RANGE.map((stringNo) => (
           <div className="tab-string-line" key={`${label}-line-${measure}-${stringNo}`} style={{ gridRow: stringNo }} aria-hidden="true" />
         ))}
@@ -1104,6 +1123,7 @@ function ScoreMeasure({
   onSelect: (id: string) => void;
   isPlaying: boolean;
 }) {
+  const audit = scoreAuditStatus(songId, trackId, measure);
   const proceduralGlyphs = glyphsForTrack(songId, trackId, measure) ?? [];
   const proceduralLabel = trackId === "lead" ? "LEAD GUITAR" : "BACKING GUITAR";
   const score = songId !== "life-over" || trackId === "backing"
@@ -1114,7 +1134,16 @@ function ScoreMeasure({
         ? <TabMeasure measure={measure} currentId={currentId} learnedIds={learnedIds} onSelect={onSelect} />
         : <RestTabMeasure measure={measure} />;
 
-  return <div className="score-measure" data-playing={isPlaying}>{score}</div>;
+  return (
+    <div className="score-measure" data-playing={isPlaying}>
+      <div className="mb-1 flex items-center justify-end">
+        <span className="rounded-md border px-2 py-1 text-[0.65rem] font-black data-[tone=verified]:border-emerald-700 data-[tone=verified]:text-emerald-300 data-[tone=draft]:border-amber-800 data-[tone=draft]:text-amber-300" data-tone={audit.tone}>
+          {audit.label}
+        </span>
+      </div>
+      {score}
+    </div>
+  );
 }
 
 function SongMap({ parts, currentMeasure, onJump }: { parts: readonly SongPart[]; currentMeasure: number; onJump: (measure: number) => void }) {
@@ -1178,9 +1207,15 @@ export function GuitarTrainer() {
   const [playing, setPlaying] = useState(false);
   const [playbackMeasure, setPlaybackMeasure] = useState<number | null>(null);
   const [playbackLabel, setPlaybackLabel] = useState("");
+  const [pausedSession, setPausedSession] = useState<PlaybackSession | null>(null);
+  const [playbackProgressSteps, setPlaybackProgressSteps] = useState(0);
   const [playbackPreset, setPlaybackPreset] = useState<PlaybackPreset>("page");
+  const [loopStart, setLoopStart] = useState(1);
+  const [loopEnd, setLoopEnd] = useState(4);
+  const [loopEnabled, setLoopEnabled] = useState(false);
   const [countIn, setCountIn] = useState(true);
   const [metronome, setMetronome] = useState(true);
+  const [videoSync, setVideoSync] = useState(true);
   const [learnedIds, setLearnedIds] = useState<Set<string>>(new Set());
   const [inputEnabled, setInputEnabled] = useState(false);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
@@ -1191,21 +1226,110 @@ export function GuitarTrainer() {
   const [detectedCents, setDetectedCents] = useState<number | null>(null);
   const [pitchMatched, setPitchMatched] = useState(false);
   const [inputError, setInputError] = useState("");
+  const [inputSensitivity, setInputSensitivity] = useState(0.004);
+  const [tunerString, setTunerString] = useState<"auto" | StringNumber>("auto");
   const [autoAdvance, setAutoAdvance] = useState(false);
   const [guidedMode, setGuidedMode] = useState(false);
+  const [guidedWaiting, setGuidedWaiting] = useState(false);
+  const [auditNotes, setAuditNotes] = useState<Record<string, string>>({});
   const audioContextRef = useRef<AudioContext | null>(null);
   const timerIdsRef = useRef<number[]>([]);
   const activeNodesRef = useRef<Set<OscillatorNode>>(new Set());
   const playbackSessionRef = useRef<PlaybackSession | null>(null);
+  const playbackProgressTimerRef = useRef<number | null>(null);
+  const videoSyncTimerRef = useRef<number | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const inputStreamRef = useRef<MediaStream | null>(null);
   const inputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const inputFilterRef = useRef<BiquadFilterNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const settingsHydratedRef = useRef(false);
+  const restoredMeasureRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("fret-step-trainer:v2");
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          songId?: SongId;
+          trackId?: TrackId;
+          bpm?: number;
+          timelineMeasure?: number;
+          learnedIds?: string[];
+          countIn?: boolean;
+          metronome?: boolean;
+          videoSync?: boolean;
+          inputSensitivity?: number;
+          tunerString?: "auto" | StringNumber;
+          loopStart?: number;
+          loopEnd?: number;
+          loopEnabled?: boolean;
+          auditNotes?: Record<string, string>;
+        };
+        window.queueMicrotask(() => {
+          if (saved.songId && SONGS[saved.songId]) setSongId(saved.songId);
+          if (saved.trackId === "lead" || saved.trackId === "backing") setTrackId(saved.trackId);
+          if (typeof saved.bpm === "number") setBpm(saved.bpm);
+          if (typeof saved.timelineMeasure === "number") {
+            restoredMeasureRef.current = saved.timelineMeasure;
+            setTimelineMeasure(saved.timelineMeasure);
+            setScorePageIndex(Math.floor((saved.timelineMeasure - 1) / 4));
+          }
+          if (Array.isArray(saved.learnedIds)) setLearnedIds(new Set(saved.learnedIds));
+          if (typeof saved.countIn === "boolean") setCountIn(saved.countIn);
+          if (typeof saved.metronome === "boolean") setMetronome(saved.metronome);
+          if (typeof saved.videoSync === "boolean") setVideoSync(saved.videoSync);
+          if (typeof saved.inputSensitivity === "number") setInputSensitivity(saved.inputSensitivity);
+          if (saved.tunerString === "auto" || typeof saved.tunerString === "number") setTunerString(saved.tunerString);
+          if (typeof saved.loopStart === "number") setLoopStart(saved.loopStart);
+          if (typeof saved.loopEnd === "number") setLoopEnd(saved.loopEnd);
+          if (typeof saved.loopEnabled === "boolean") setLoopEnabled(saved.loopEnabled);
+          if (saved.auditNotes && typeof saved.auditNotes === "object") setAuditNotes(saved.auditNotes);
+          settingsHydratedRef.current = true;
+        });
+        return;
+      }
+    } catch {
+      // Invalid or old settings are ignored; the trainer remains usable.
+    }
+    settingsHydratedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!settingsHydratedRef.current) return;
+    window.localStorage.setItem("fret-step-trainer:v2", JSON.stringify({
+      songId,
+      trackId,
+      bpm,
+      timelineMeasure,
+      learnedIds: [...learnedIds],
+      countIn,
+      metronome,
+      videoSync,
+      inputSensitivity,
+      tunerString,
+      loopStart,
+      loopEnd,
+      loopEnabled,
+      auditNotes,
+    }));
+  }, [auditNotes, bpm, countIn, inputSensitivity, learnedIds, loopEnabled, loopEnd, loopStart, metronome, songId, timelineMeasure, trackId, tunerString, videoSync]);
 
   const song = SONGS[songId];
   const track = song.tracks[trackId];
   const activeNotes = notesForTrack(songId, trackId);
   const activeScorePages = scorePages(song.totalMeasures);
+
+  useEffect(() => {
+    const restoredMeasure = restoredMeasureRef.current;
+    if (restoredMeasure === null) return;
+    const restoredIndex = activeNotes.findIndex((note) => note.measure >= restoredMeasure);
+    window.queueMicrotask(() => {
+      setNoteIndex(restoredIndex >= 0 ? restoredIndex : Math.max(0, activeNotes.length - 1));
+      setVideoStart(videoTimeForMeasure(song, track, restoredMeasure));
+      restoredMeasureRef.current = null;
+    });
+  }, [activeNotes, song, track]);
 
   const moveToNoteIndex = useCallback((nextIndex: number) => {
     const boundedIndex = Math.min(activeNotes.length - 1, Math.max(0, nextIndex));
@@ -1216,17 +1340,21 @@ export function GuitarTrainer() {
   }, [activeNotes]);
 
   const currentNote = activeNotes[Math.min(noteIndex, activeNotes.length - 1)];
-  const targetFrequency = frequencyFor(currentNote.stringNo, currentNote.fret);
+  const targetFrequency = frequencyFor(currentNote.stringNo, currentNote.fret, song.capo);
+  const selectedTunerString = tunerString === "auto"
+    ? null
+    : TUNER_STRINGS.find((candidate) => candidate.stringNo === tunerString) ?? null;
+  const tunerDetectionTarget = selectedTunerString?.frequency;
   const activeNoteIds = new Set(activeNotes.map((note) => note.id));
   const learnedForSong = [...learnedIds].filter((id) => activeNoteIds.has(id)).length;
   const learnedProgress = Math.round((learnedForSong / activeNotes.length) * 100);
   const fretStart = Math.max(0, currentNote.fret >= 10 ? currentNote.fret - 1 : currentNote.fret - 2);
   const fretRange = Array.from({ length: 5 }, (_, index) => fretStart + index);
-  const tunerOffset = Math.max(-50, Math.min(50, detectedCents ?? 0)) * 1.4;
+  const tunerOffset = clamp(detectedCents ?? 0, -50, 50) * 1.4;
   const nearestDetectedPitch = detectedFrequency ? nearestPitch(detectedFrequency) : null;
   const displayTargetFrequency = inputMode === "judge"
     ? targetFrequency
-    : nearestDetectedPitch?.frequency ?? null;
+    : tunerDetectionTarget ?? nearestDetectedPitch?.frequency ?? null;
   const tunerMessage = inputMode === "tuner"
     ? detectedCents === null
       ? "開放弦を1本だけ鳴らしてください"
@@ -1290,12 +1418,40 @@ export function GuitarTrainer() {
       end: song.totalMeasures,
       label: `現在地 ${remainingStartMeasure}〜${song.totalMeasures}小節`,
     },
+    {
+      id: "loop",
+      title: `A/B ${loopStart}〜${loopEnd}`,
+      detail: `${loopEnabled ? "繰り返しON" : "1回再生"} · ${rangeDuration(loopStart, loopEnd, bpm)}`,
+      start: loopStart,
+      end: loopEnd,
+      label: `A/Bループ ${loopStart}〜${loopEnd}小節`,
+    },
   ];
   const selectedPlaybackChoice = playbackChoices.find((choice) => choice.id === playbackPreset) ?? playbackChoices[0];
+  const selectedPlaybackTotalSteps = (selectedPlaybackChoice.end - selectedPlaybackChoice.start + 1) * 16;
+  const selectedPlaybackProgress = clamp(playbackProgressSteps / selectedPlaybackTotalSteps, 0, 1);
+  const canResumeSelected = pausedSession?.startMeasure === selectedPlaybackChoice.start
+    && pausedSession.endMeasure === selectedPlaybackChoice.end;
+
+  const sendVideoCommand = useCallback((command: "playVideo" | "pauseVideo" | "seekTo" | "setPlaybackRate", args: Array<number | boolean> = []) => {
+    iframeRef.current?.contentWindow?.postMessage(JSON.stringify({
+      event: "command",
+      func: command,
+      args,
+    }), "*");
+  }, []);
 
   const clearTimers = useCallback(() => {
     timerIdsRef.current.forEach((timerId) => window.clearTimeout(timerId));
     timerIdsRef.current = [];
+    if (playbackProgressTimerRef.current !== null) {
+      window.clearInterval(playbackProgressTimerRef.current);
+      playbackProgressTimerRef.current = null;
+    }
+    if (videoSyncTimerRef.current !== null) {
+      window.clearTimeout(videoSyncTimerRef.current);
+      videoSyncTimerRef.current = null;
+    }
   }, []);
 
   const clearPlaybackSchedule = useCallback(() => {
@@ -1313,10 +1469,30 @@ export function GuitarTrainer() {
   const stopPlayback = useCallback(() => {
     clearPlaybackSchedule();
     playbackSessionRef.current = null;
+    setPausedSession(null);
+    setPlaybackProgressSteps(0);
     setPlaying(false);
     setPlaybackMeasure(null);
     setPlaybackLabel("");
-  }, [clearPlaybackSchedule]);
+    sendVideoCommand("pauseVideo");
+  }, [clearPlaybackSchedule, sendVideoCommand]);
+
+  const pausePlayback = useCallback(() => {
+    const session = playbackSessionRef.current;
+    if (!session) return;
+    const context = audioContextRef.current;
+    const positionSteps = context
+      ? playbackPositionSteps(session.positionSteps, session.scheduledAt, context.currentTime, session.bpm)
+      : session.positionSteps;
+    clearPlaybackSchedule();
+    const paused = { ...session, positionSteps, scheduledAt: 0 };
+    playbackSessionRef.current = null;
+    setPausedSession(paused);
+    setPlaybackProgressSteps(positionSteps);
+    setPlaying(false);
+    setPlaybackMeasure(positionToMeasure(session.startMeasure, session.endMeasure, positionSteps));
+    sendVideoCommand("pauseVideo");
+  }, [clearPlaybackSchedule, sendVideoCommand]);
 
   useEffect(() => {
     const activeNodes = activeNodesRef.current;
@@ -1358,16 +1534,19 @@ export function GuitarTrainer() {
       const frequency = detectPitch(
         buffer,
         analyser.context.sampleRate,
-        inputMode === "judge" ? targetFrequency : undefined,
+        inputMode === "judge" ? targetFrequency : tunerDetectionTarget,
+        inputSensitivity,
       );
 
       if (frequency) {
         const pitch = nearestPitch(frequency);
         const cents = inputMode === "judge"
-          ? 1200 * Math.log2(frequency / targetFrequency)
-          : pitch.cents;
+          ? centsBetween(frequency, targetFrequency)
+          : tunerDetectionTarget
+            ? centsBetween(frequency, tunerDetectionTarget)
+            : pitch.cents;
         const isCorrect = Math.abs(cents) <= (inputMode === "judge" ? 30 : 5)
-          && (inputMode === "tuner" || !playing);
+          && (inputMode === "tuner" || (!playing && (!guidedMode || guidedWaiting)));
         setDetectedFrequency(frequency);
         setDetectedCents(cents);
         correctFrames = isCorrect ? correctFrames + 1 : 0;
@@ -1376,8 +1555,25 @@ export function GuitarTrainer() {
         if (inputMode === "judge" && (autoAdvance || guidedMode) && correctFrames >= 8 && !advanced) {
           advanced = true;
           setLearnedIds((previous) => new Set(previous).add(currentNote.id));
-          if (noteIndex < activeNotes.length - 1) moveToNoteIndex(noteIndex + 1);
-          else setGuidedMode(false);
+          if (noteIndex < activeNotes.length - 1) {
+            const nextIndex = noteIndex + 1;
+            moveToNoteIndex(nextIndex);
+            if (guidedMode) {
+              setGuidedWaiting(false);
+              const nextNote = activeNotes[nextIndex];
+              const guideTimer = window.setTimeout(() => {
+                const context = getAudioContext();
+                void context.resume();
+                schedulePluck(context, nextNote.stringNo, nextNote.fret, context.currentTime + 0.04, 0.55);
+                const waitTimer = window.setTimeout(() => setGuidedWaiting(true), 700);
+                timerIdsRef.current.push(waitTimer);
+              }, 120);
+              timerIdsRef.current.push(guideTimer);
+            }
+          } else {
+            setGuidedMode(false);
+            setGuidedWaiting(false);
+          }
         }
       } else {
         correctFrames = 0;
@@ -1394,7 +1590,9 @@ export function GuitarTrainer() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [activeNotes.length, autoAdvance, currentNote.fret, currentNote.id, currentNote.stringNo, guidedMode, inputEnabled, inputMode, moveToNoteIndex, noteIndex, playing, selectedDeviceId, targetFrequency]);
+    // schedulePluck intentionally reads the current capo; targetFrequency changes with the same inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNotes, autoAdvance, currentNote.fret, currentNote.id, currentNote.stringNo, guidedMode, guidedWaiting, inputEnabled, inputMode, inputSensitivity, moveToNoteIndex, noteIndex, playing, selectedDeviceId, targetFrequency, tunerDetectionTarget]);
 
   function getAudioContext() {
     if (!audioContextRef.current) {
@@ -1470,6 +1668,7 @@ export function GuitarTrainer() {
     analyserRef.current = null;
     setInputEnabled(false);
     setGuidedMode(false);
+    setGuidedWaiting(false);
     setDetectedFrequency(null);
     setInputLevel(0);
     setDetectedCents(null);
@@ -1481,11 +1680,18 @@ export function GuitarTrainer() {
     setInputMode("judge");
     setAutoAdvance(false);
     setGuidedMode(true);
+    setGuidedWaiting(false);
     if (!inputEnabled) void connectInput(selectedDeviceId || undefined);
+    const context = getAudioContext();
+    void context.resume();
+    schedulePluck(context, currentNote.stringNo, currentNote.fret, context.currentTime + 0.04, 0.55);
+    const waitTimer = window.setTimeout(() => setGuidedWaiting(true), 700);
+    timerIdsRef.current.push(waitTimer);
   }
 
   function stopGuidedMode() {
     setGuidedMode(false);
+    setGuidedWaiting(false);
     setPitchMatched(false);
   }
 
@@ -1499,7 +1705,7 @@ export function GuitarTrainer() {
     const gain = context.createGain();
     const oscillator = context.createOscillator();
     const overtone = context.createOscillator();
-    const frequency = frequencyFor(stringNo, fret);
+    const frequency = frequencyFor(stringNo, fret, song.capo);
 
     oscillator.type = "triangle";
     oscillator.frequency.setValueAtTime(frequency, startAt);
@@ -1565,6 +1771,39 @@ export function GuitarTrainer() {
       positionSteps: boundedPosition,
       scheduledAt: startAt,
     };
+    setPausedSession(null);
+    setPlaybackProgressSteps(boundedPosition);
+
+    if (videoSync) {
+      const scorePosition = Math.max(0, boundedPosition);
+      const positionMeasure = positionToMeasure(startMeasure, endMeasure, scorePosition);
+      const stepInMeasure = scorePosition % 16;
+      const videoSeconds = videoTimeForPosition(
+        track.videoStartSeconds,
+        song.originalBpm,
+        positionMeasure,
+        stepInMeasure,
+      );
+      sendVideoCommand("seekTo", [videoSeconds, true]);
+      sendVideoCommand("setPlaybackRate", [nextBpm / song.originalBpm]);
+      if (boundedPosition < 0) {
+        sendVideoCommand("pauseVideo");
+        videoSyncTimerRef.current = window.setTimeout(() => sendVideoCommand("playVideo"), -boundedPosition * secondsPerStep * 1000);
+      } else {
+        sendVideoCommand("playVideo");
+      }
+    }
+
+    playbackProgressTimerRef.current = window.setInterval(() => {
+      const session = playbackSessionRef.current;
+      if (!session) return;
+      setPlaybackProgressSteps(playbackPositionSteps(
+        session.positionSteps,
+        session.scheduledAt,
+        getAudioContext().currentTime,
+        session.bpm,
+      ));
+    }, 120);
 
     if (countIn && boundedPosition < 0) {
       for (let step = -16; step < 0; step += 4) {
@@ -1609,6 +1848,10 @@ export function GuitarTrainer() {
           setPlaybackMeasure(measure);
           setTimelineMeasure(measure);
           setScorePageIndex(Math.floor((measure - 1) / 4));
+          if (videoSync) {
+            sendVideoCommand("seekTo", [videoTimeForPosition(track.videoStartSeconds, song.originalBpm, measure), true]);
+            sendVideoCommand("setPlaybackRate", [nextBpm / song.originalBpm]);
+          }
         }, (measureOffset - boundedPosition) * secondsPerStep * 1000);
         timerIdsRef.current.push(measureTimer);
       }
@@ -1625,10 +1868,21 @@ export function GuitarTrainer() {
     setScorePageIndex(Math.floor((currentMeasure - 1) / 4));
     const endTimer = window.setTimeout(
       () => {
+        if (playbackProgressTimerRef.current !== null) {
+          window.clearInterval(playbackProgressTimerRef.current);
+          playbackProgressTimerRef.current = null;
+        }
+        if (loopEnabled && playbackPreset === "loop") {
+          clearPlaybackSchedule();
+          scheduleRange(startMeasure, endMeasure, label, nextBpm, 0);
+          return;
+        }
         playbackSessionRef.current = null;
+        setPausedSession(null);
         setPlaying(false);
         setPlaybackMeasure(null);
         setPlaybackLabel("");
+        sendVideoCommand("pauseVideo");
       },
       (totalSteps - boundedPosition + 0.3) * secondsPerStep * 1000,
     );
@@ -1647,7 +1901,19 @@ export function GuitarTrainer() {
 
   function toggleSelectedPlayback() {
     if (playing) {
-      stopPlayback();
+      pausePlayback();
+      return;
+    }
+    if (pausedSession
+      && pausedSession.startMeasure === selectedPlaybackChoice.start
+      && pausedSession.endMeasure === selectedPlaybackChoice.end) {
+      scheduleRange(
+        pausedSession.startMeasure,
+        pausedSession.endMeasure,
+        pausedSession.label,
+        bpm,
+        pausedSession.positionSteps,
+      );
       return;
     }
     playRange(
@@ -1658,19 +1924,33 @@ export function GuitarTrainer() {
   }
 
   function changeBpm(nextBpm: number) {
+    const effectiveBpm = videoSync
+      ? Math.round(song.originalBpm * nearestPlaybackRate(
+          nextBpm / song.originalBpm,
+          [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+        ))
+      : nextBpm;
     const session = playbackSessionRef.current;
-    setBpm(nextBpm);
-    if (!session) return;
+    setBpm(effectiveBpm);
+    sendVideoCommand("setPlaybackRate", [effectiveBpm / song.originalBpm]);
+    if (!session) {
+      if (pausedSession) setPausedSession({ ...pausedSession, bpm: effectiveBpm });
+      return;
+    }
 
     const context = getAudioContext();
-    const elapsedSeconds = Math.max(0, context.currentTime - session.scheduledAt);
-    const currentPosition = session.positionSteps + (elapsedSeconds * session.bpm) / 15;
+    const currentPosition = playbackPositionSteps(
+      session.positionSteps,
+      session.scheduledAt,
+      context.currentTime,
+      session.bpm,
+    );
     clearPlaybackSchedule();
     scheduleRange(
       session.startMeasure,
       session.endMeasure,
       session.label,
-      nextBpm,
+      effectiveBpm,
       currentPosition,
     );
   }
@@ -1746,6 +2026,9 @@ export function GuitarTrainer() {
     setScorePageIndex(0);
     setTimelineMeasure(1);
     setPlaybackPreset("page");
+    setLoopStart(1);
+    setLoopEnd(Math.min(4, nextSong.totalMeasures));
+    setLoopEnabled(false);
     setVideoStart(nextTrack.videoStartSeconds);
     setVideoAutoplay(false);
     setVideoNonce((nonce) => nonce + 1);
@@ -1803,9 +2086,12 @@ export function GuitarTrainer() {
               return (
                 <button
                   aria-pressed={active}
-                  className={`min-h-14 rounded-xl border px-4 py-3 text-left transition-colors ${active
-                    ? "border-lime-300 bg-lime-300 text-lime-950"
-                    : "border-stone-700 bg-stone-950 text-stone-200 hover:border-lime-300"}`}
+                  className={cn(
+                    "min-h-14 rounded-xl border px-4 py-3 text-left transition-colors",
+                    active
+                      ? "border-lime-300 bg-lime-300 text-lime-950"
+                      : "border-stone-700 bg-stone-950 text-stone-200 hover:border-lime-300",
+                  )}
                   key={candidateId}
                   onClick={() => switchSong(candidateId)}
                   type="button"
@@ -1814,22 +2100,25 @@ export function GuitarTrainer() {
                     <span>{candidate.title}</span>
                     {active && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
                   </span>
-                  <small className={`mt-1 block font-bold ${active ? "text-lime-900" : "text-stone-500"}`}>リード／バッキング · {candidate.totalMeasures}小節</small>
+                  <small className={cn("mt-1 block font-bold", active ? "text-lime-900" : "text-stone-500")}>リード／バッキング · {candidate.totalMeasures}小節</small>
                 </button>
               );
             })}
           </div>
 
-          <div className="mt-3 grid gap-2 rounded-2xl border border-stone-800 bg-stone-900 p-2 sm:grid-cols-2" aria-label="ギターパートを選択">
+          <div className="mt-3 grid gap-2 rounded-2xl border border-stone-800 bg-stone-900 p-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="ギターパートを選択">
             {(["lead", "backing"] as TrackId[]).map((candidateTrackId) => {
               const candidateTrack = song.tracks[candidateTrackId];
               const active = trackId === candidateTrackId;
               return (
                 <button
                   aria-pressed={active}
-                  className={`min-h-14 rounded-xl border px-4 py-3 text-left transition-colors ${active
-                    ? "border-lime-300 bg-lime-300 text-lime-950"
-                    : "border-stone-700 bg-stone-950 text-stone-200 hover:border-lime-300"}`}
+                  className={cn(
+                    "min-h-14 rounded-xl border px-4 py-3 text-left transition-colors",
+                    active
+                      ? "border-lime-300 bg-lime-300 text-lime-950"
+                      : "border-stone-700 bg-stone-950 text-stone-200 hover:border-lime-300",
+                  )}
                   key={candidateTrackId}
                   onClick={() => switchTrack(candidateTrackId)}
                   type="button"
@@ -1838,15 +2127,25 @@ export function GuitarTrainer() {
                     <span>{candidateTrack.label}</span>
                     {active && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
                   </span>
-                  <small className={`mt-1 block font-bold ${active ? "text-lime-900" : "text-stone-500"}`}>{candidateTrack.badge} TAB · 動画・音源・判定を同時切替</small>
+                  <small className={cn("mt-1 block font-bold", active ? "text-lime-900" : "text-stone-500")}>{candidateTrack.badge} TAB · 動画・音源・判定を同時切替</small>
                 </button>
               );
             })}
+            {songId === "life-over" && (
+              <button aria-disabled="true" className="min-h-14 cursor-not-allowed rounded-xl border border-dashed border-amber-800 bg-stone-950 px-4 py-3 text-left text-stone-500" disabled type="button">
+                <span className="flex items-center justify-between gap-3 font-black"><span>追加ギター（第3段）</span><span className="rounded-full border border-amber-800 px-2 py-0.5 text-[10px] text-amber-300">監査中</span></span>
+                <small className="mt-1 block text-pretty font-bold">66小節以降に現れる中央段。原動画と照合後に有効化</small>
+              </button>
+            )}
           </div>
         </div>
       </header>
 
-      <section className="live-console border-b border-stone-700 bg-stone-950" aria-labelledby="live-console-title">
+      <details className="live-console border-b border-stone-700 bg-stone-950">
+        <summary className="mx-auto flex min-h-14 max-w-7xl cursor-pointer items-center justify-between gap-4 px-4 py-3 font-black sm:px-6 lg:px-8">
+          <span>Ampero入力・チューナー・TAB判定</span>
+          <span className="text-xs text-lime-300">{inputEnabled ? "接続中" : "必要な時だけ開く"}</span>
+        </summary>
         <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
@@ -1900,20 +2199,30 @@ export function GuitarTrainer() {
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             {inputMode === "judge" ? (
               <div className="flex flex-wrap items-center gap-2">
-                <button className="min-h-10 rounded-xl bg-lime-300 px-4 text-xs font-black text-lime-950" onClick={guidedMode ? stopGuidedMode : startGuidedMode} type="button">{guidedMode ? "■ 正解待ち停止" : "▶ 正解待ちで進む"}</button>
+                <button className="min-h-10 rounded-xl bg-lime-300 px-4 text-xs font-black text-lime-950" onClick={guidedMode ? stopGuidedMode : startGuidedMode} type="button">{guidedMode ? "■ 正解待ち停止" : "▶ お手本→正解で進む"}</button>
                 <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold"><input className="size-4" type="checkbox" checked={autoAdvance} onChange={(event) => setAutoAdvance(event.target.checked)} />正解で次の音へ</label>
-                <span className="text-xs font-bold text-stone-500">{guidedMode ? (pitchMatched ? "正解 → 次へ" : "違う音なら停止したまま待機") : "譜面を見ながら判定"}</span>
+                <span className="text-xs font-bold text-stone-500">{guidedMode ? (guidedWaiting ? (pitchMatched ? "正解 → 次のお手本" : "あなたの番。正しい音まで停止") : "お手本を再生中。入力判定は待機") : "譜面を見ながら判定"}</span>
               </div>
             ) : (
-              <div className="flex flex-wrap gap-1" aria-label="標準チューニングの開放弦">
-                {TUNER_STRINGS.map((string) => <span className="rounded-lg border border-stone-800 px-2 py-1 text-[0.65rem] font-black text-stone-400" key={string.label}>{string.label} {string.name}</span>)}
+              <div className="flex flex-wrap gap-1" aria-label="チューナーで判定する弦">
+                <button aria-pressed={tunerString === "auto"} className="min-h-10 rounded-lg border border-stone-700 px-3 text-xs font-black data-[active=true]:border-lime-300 data-[active=true]:bg-lime-300 data-[active=true]:text-lime-950" data-active={tunerString === "auto"} onClick={() => setTunerString("auto")} type="button">AUTO</button>
+                {TUNER_STRINGS.map((string) => (
+                  <button aria-pressed={tunerString === string.stringNo} className="min-h-10 rounded-lg border border-stone-700 px-3 text-xs font-black data-[active=true]:border-lime-300 data-[active=true]:bg-lime-300 data-[active=true]:text-lime-950" data-active={tunerString === string.stringNo} onClick={() => setTunerString(string.stringNo)} type="button" key={string.label}>
+                    {string.label} {string.name}
+                  </button>
+                ))}
               </div>
             )}
             <p className="text-xs font-bold text-stone-600">{trackId === "backing" ? "和音の判定はルート音を1音ずつ" : "Amperoはクリーン音・1音ずつ"}</p>
           </div>
+          <label className="mt-2 grid gap-1 text-xs font-bold text-stone-500 sm:grid-cols-[auto_minmax(10rem,22rem)_auto] sm:items-center">
+            入力感度
+            <input aria-label="入力感度" className="min-h-10 w-full" max="0.012" min="0.001" onChange={(event) => setInputSensitivity(Number(event.target.value))} step="0.001" type="range" value={inputSensitivity} />
+            <span className="tabular-nums">{inputSensitivity <= 0.003 ? "高" : inputSensitivity >= 0.008 ? "低" : "標準"}</span>
+          </label>
           {inputError && <p className="mt-2 rounded-lg border border-red-900 bg-red-950 px-3 py-2 text-xs font-bold text-red-200" role="alert">{inputError}</p>}
         </div>
-      </section>
+      </details>
 
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:px-8">
         <div className="min-w-0 space-y-6">
@@ -1944,7 +2253,7 @@ export function GuitarTrainer() {
                 <h2 id="video-title" className="mt-1 text-balance text-2xl font-black">原曲動画</h2>
                 <p className="mt-2 text-pretty text-sm text-stone-400">{track.videoStartLabel}を1小節目として{song.originalBpm} BPMで換算。SONG MAPから選ぶと、{track.label}動画も同じ小節の位置へ移動します。</p>
               </div>
-              <div className={`grid gap-2 ${track.videoStartSeconds === 0 ? "grid-cols-2" : "grid-cols-3"}`}>
+              <div className={cn("grid gap-2", track.videoStartSeconds === 0 ? "grid-cols-2" : "grid-cols-3")}>
                 <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-3 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={videoStart === 0} onClick={() => setVideoPreset(0)} type="button">演奏 0:00</button>
                 {track.videoStartSeconds > 0 && <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-3 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={videoStart === track.videoStartSeconds} onClick={() => setVideoPreset(track.videoStartSeconds, 1)} type="button">{track.videoStartLabel}</button>}
                 <button className="min-h-11 rounded-xl border border-lime-300 bg-lime-300 px-3 text-sm font-black text-lime-950" onClick={() => playVideoFromMeasure(activeMeasure)} type="button">▶ {activeMeasure}小節</button>
@@ -1956,7 +2265,12 @@ export function GuitarTrainer() {
                 allowFullScreen
                 key={`${videoStart}-${videoNonce}`}
                 loading="lazy"
-                src={`https://www.youtube-nocookie.com/embed/${track.videoId}?start=${videoStart}&rel=0&autoplay=${videoAutoplay ? 1 : 0}`}
+                onLoad={() => {
+                  sendVideoCommand("setPlaybackRate", [bpm / song.originalBpm]);
+                  if (videoAutoplay) sendVideoCommand("playVideo");
+                }}
+                ref={iframeRef}
+                src={`https://www.youtube-nocookie.com/embed/${track.videoId}?start=${videoStart}&rel=0&autoplay=${videoAutoplay ? 1 : 0}&enablejsapi=1&playsinline=1`}
                 title={`${song.title} ${track.label} TAB 動画`}
               />
             </div>
@@ -1968,6 +2282,7 @@ export function GuitarTrainer() {
                 <p className="text-sm font-bold text-lime-300">{track.badge} TAB · 全曲</p>
                 <h2 id="full-score-title" className="mt-1 text-balance text-2xl font-black">{track.label}を1〜{song.totalMeasures}小節</h2>
                 <p className="mt-2 max-w-2xl text-pretty text-sm text-stone-400">{track.description}</p>
+                <p className="mt-2 max-w-2xl text-pretty text-xs font-bold text-amber-300">各小節に出典状態を表示します。「動画監査中」は繰り返しパターンから起こした仮データで、原動画との最終照合前です。</p>
               </div>
               <label className="grid gap-1 text-xs font-bold text-stone-400">
                 小節へ移動
@@ -1988,30 +2303,56 @@ export function GuitarTrainer() {
                   <p className="mt-1 text-sm font-bold text-stone-200" aria-live="polite">
                     {playing
                       ? `再生中 · ${playbackLabel} · ${playbackMeasure ?? activeMeasure}小節`
-                      : `選択中 · ${selectedPlaybackChoice.label}`}
+                      : canResumeSelected
+                        ? `一時停止中 · ${pausedSession?.label} · ${playbackMeasure ?? activeMeasure}小節`
+                        : `選択中 · ${selectedPlaybackChoice.label}`}
                   </p>
                 </div>
                 <button
-                  aria-label={playing ? "TAB音源を停止" : `${selectedPlaybackChoice.label}を再生`}
-                  className={`min-h-12 min-w-32 rounded-xl border px-5 text-sm font-black transition-colors ${playing
-                    ? "border-red-400 bg-red-400/10 text-red-300 hover:bg-red-400 hover:text-stone-950"
-                    : "border-lime-300 bg-lime-300 text-lime-950 hover:bg-lime-200"}`}
+                  aria-label={playing ? "TAB音源を一時停止" : canResumeSelected ? "TAB音源を途中から再開" : `${selectedPlaybackChoice.label}を再生`}
+                  className={cn(
+                    "min-h-12 min-w-32 rounded-xl border px-5 text-sm font-black transition-colors",
+                    playing
+                      ? "border-red-400 bg-red-400/10 text-red-300 hover:bg-red-400 hover:text-stone-950"
+                      : "border-lime-300 bg-lime-300 text-lime-950 hover:bg-lime-200",
+                  )}
                   onClick={toggleSelectedPlayback}
                   type="button"
                 >
-                  {playing ? "■ 停止" : "▶ 再生"}
+                  {playing ? "Ⅱ 一時停止" : canResumeSelected ? "▶ 再開" : "▶ 再生"}
                 </button>
               </div>
-              <p className="mt-4 text-[11px] font-black tracking-[0.16em] text-stone-500">再生範囲を選択</p>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-800" role="progressbar" aria-label="選択範囲の再生位置" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(selectedPlaybackProgress * 100)}>
+                <div className="h-full rounded-full bg-lime-300 transition-[width] duration-100" style={{ width: `${selectedPlaybackProgress * 100}%` }} />
+              </div>
+
+              <div className="mt-4 grid gap-2 rounded-xl border border-stone-800 bg-stone-900 p-3 sm:grid-cols-[repeat(3,auto)_1fr] sm:items-center">
+                <button className="min-h-11 rounded-lg border border-stone-700 px-3 text-xs font-black hover:border-lime-300" onClick={() => { setLoopStart(activeMeasure); if (loopEnd < activeMeasure) setLoopEnd(activeMeasure); setPlaybackPreset("loop"); }} type="button">A = {loopStart}小節</button>
+                <button className="min-h-11 rounded-lg border border-stone-700 px-3 text-xs font-black hover:border-lime-300" onClick={() => { setLoopEnd(activeMeasure); if (loopStart > activeMeasure) setLoopStart(activeMeasure); setPlaybackPreset("loop"); }} type="button">B = {loopEnd}小節</button>
+                <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-black"><input className="size-4" checked={loopEnabled} onChange={(event) => setLoopEnabled(event.target.checked)} type="checkbox" />A/Bを反復</label>
+                <p className="text-pretty text-xs font-bold text-stone-500">SONG MAPかTABで位置を選び、A/Bボタンで練習区間を固定できます。</p>
+              </div>
+
+              <div className="mt-4 grid gap-2 rounded-xl border border-stone-800 bg-stone-900 p-3 sm:grid-cols-[repeat(3,minmax(5.5rem,auto))_1fr] sm:items-center" data-correct={pitchMatched}>
+                <p className="text-xs font-black text-stone-400">譜面横の判定</p>
+                <p className="text-sm font-black tabular-nums">狙い {noteName(targetFrequency)}</p>
+                <p className="text-sm font-black tabular-nums">入力 {detectedFrequency ? noteName(detectedFrequency) : "—"}</p>
+                <p className="text-pretty text-xs font-bold text-stone-400" aria-live="polite">{inputEnabled ? tunerMessage : "Amperoは上の入力パネルから接続"}</p>
+              </div>
+
+              <p className="mt-4 text-xs font-black text-stone-500">再生範囲を選択</p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                 {playbackChoices.map((choice) => {
                   const selected = choice.id === playbackPreset;
                   return (
                     <button
                       aria-pressed={selected}
-                      className={`relative min-h-16 rounded-xl border px-4 py-3 text-left text-sm font-black transition-colors ${selected
-                        ? "border-lime-300 bg-lime-300 text-lime-950 shadow-[0_0_0_1px_rgba(190,242,100,0.35)]"
-                        : "border-stone-700 bg-stone-900 text-stone-200 hover:border-lime-300 hover:bg-stone-800"}`}
+                      className={cn(
+                        "relative min-h-16 rounded-xl border px-4 py-3 text-left text-sm font-black transition-colors",
+                        selected
+                          ? "border-lime-300 bg-lime-300 text-lime-950 shadow-[0_0_0_1px_rgba(190,242,100,0.35)]"
+                          : "border-stone-700 bg-stone-900 text-stone-200 hover:border-lime-300 hover:bg-stone-800",
+                      )}
                       key={choice.id}
                       onClick={() => selectPlaybackPreset(choice.id)}
                       type="button"
@@ -2020,12 +2361,15 @@ export function GuitarTrainer() {
                         <span>{choice.title}</span>
                         {selected && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
                       </span>
-                      <small className={`mt-1 block font-bold ${selected ? "text-lime-900" : "text-stone-500"}`}>{choice.detail}</small>
+                      <small className={cn("mt-1 block font-bold", selected ? "text-lime-900" : "text-stone-500")}>{choice.detail}</small>
                     </button>
                   );
                 })}
               </div>
-              <p className="mt-3 text-xs font-bold text-stone-500">範囲を選んで上の「再生」を押します。再生位置はSONG MAPとTABに同期します。</p>
+              <div className="mt-3 flex flex-col gap-2 border-t border-stone-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-pretty text-xs font-bold text-stone-500">一時停止後は同じ位置から再開。範囲変更や小節移動をすると停止位置を破棄します。</p>
+                <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-black"><input className="size-4" checked={videoSync} onChange={(event) => setVideoSync(event.target.checked)} type="checkbox" />動画もBPM・位置に同期</label>
+              </div>
             </div>
 
             <div className="mt-5 grid gap-4 xl:grid-cols-2">
@@ -2033,6 +2377,27 @@ export function GuitarTrainer() {
                 <ScoreMeasure songId={songId} trackId={trackId} measure={measure} currentId={currentNote.id} learnedIds={learnedIds} onSelect={selectNote} isPlaying={playbackMeasure === measure} key={measure} />
               ))}
             </div>
+
+            <details className="mt-4 rounded-xl border border-amber-800/70 bg-amber-950/20 p-4 text-sm text-stone-300">
+              <summary className="min-h-6 cursor-pointer font-black text-amber-300">譜面の監査・訂正メモ</summary>
+              <p className="mt-3 text-pretty text-xs font-bold leading-5 text-stone-400">現在表示中の小節ごとに、原動画と違う弦・フレット・リズムを記録できます。メモはこの端末に自動保存されます。</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {selectedScorePage.measures.map((measure) => {
+                  const auditKey = `${songId}:${trackId}:${measure}`;
+                  return (
+                    <label className="grid gap-1 text-xs font-black" key={auditKey}>
+                      {measure}小節の訂正メモ
+                      <textarea
+                        className="min-h-24 resize-y rounded-lg border border-stone-700 bg-stone-950 px-3 py-2 font-medium text-stone-100 placeholder:text-stone-600"
+                        onChange={(event) => setAuditNotes((current) => ({ ...current, [auditKey]: event.target.value }))}
+                        placeholder="例: 2拍目の10は2弦ではなく3弦"
+                        value={auditNotes[auditKey] ?? ""}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </details>
 
             <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === 0} onClick={() => jumpScoreTo(activeScorePages[Math.max(0, scorePageIndex - 1)].start)} type="button">← 前の4小節</button>
@@ -2158,13 +2523,16 @@ export function GuitarTrainer() {
             <input className="mt-5 min-h-11 w-full" type="range" min="50" max={song.originalBpm} step="1" value={bpm} onChange={(event) => changeBpm(Number(event.target.value))} aria-label="練習テンポ" />
             <div className="mt-2 flex justify-between text-xs text-stone-500 tabular-nums"><span>50</span><span>{song.originalBpm}</span></div>
             <div className="mt-4 grid grid-cols-3 gap-2">
-              {[0.5, 0.7, 1].map((ratio) => {
+              {[0.5, 0.75, 1].map((ratio) => {
                 const value = Math.round(song.originalBpm * ratio);
                 return (
                 <button className="min-h-11 rounded-lg border border-stone-700 bg-stone-950 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={bpm === value} type="button" onClick={() => changeBpm(value)} key={ratio}>{Math.round(ratio * 100)}%</button>
                 );
               })}
             </div>
+            <p className="mt-3 text-pretty text-xs font-bold text-stone-500">
+              {videoSync ? "動画同期ON：YouTubeが実際に再生できる速度へ即時スナップします。" : "動画同期OFF：1 BPM単位でTAB音源だけ速度を変えられます。"}
+            </p>
             <label className="mt-5 flex min-h-11 cursor-pointer items-center gap-3 border-t border-stone-800 pt-4 text-sm font-bold">
               <input className="size-5" type="checkbox" checked={countIn} onChange={(event) => setCountIn(event.target.checked)} />
               1小節カウントしてから開始

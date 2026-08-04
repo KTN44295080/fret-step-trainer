@@ -56,7 +56,7 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /aria-pressed="true"/);
   assert.match(html, /aria-label="表示4小節 1〜4を再生"/);
   assert.match(html, /譜面を見ながら判定/);
-  assert.match(html, /正解待ちで進む/);
+  assert.match(html, /お手本→正解で進む/);
   assert.match(html, /原曲動画/);
   assert.match(html, /Aメロ/);
   assert.match(html, /Bメロ/);
@@ -101,12 +101,18 @@ test("keeps the input meter and tuner in the client implementation", async () =>
   assert.match(trainer, /type TrackId = "lead" \| "backing"/);
   assert.match(trainer, /function toggleSelectedPlayback/);
   assert.match(trainer, /aria-pressed=\{selected\}/);
-  assert.match(trainer, /playing \? "■ 停止" : "▶ 再生"/);
+  assert.match(trainer, /playing \? "Ⅱ 一時停止" : canResumeSelected \? "▶ 再開" : "▶ 再生"/);
   assert.doesNotMatch(trainer, /onClick=\{\(\) => playRange\(1, 151/);
   assert.doesNotMatch(trainer, /live-console sticky|sticky top-0 z-50/);
   assert.match(trainer, /scorePlaybackEvents/);
   assert.match(trainer, /activeNodesRef/);
   assert.match(trainer, /guidedMode/);
+  assert.match(trainer, /A\/Bを反復/);
+  assert.match(trainer, /動画もBPM・位置に同期/);
+  assert.match(trainer, /enablejsapi=1/);
+  assert.match(trainer, /fret-step-trainer:v2/);
+  assert.match(trainer, /auditNotes/);
+  assert.match(trainer, /<details className="live-console/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
 });
@@ -114,8 +120,8 @@ test("keeps the input meter and tuner in the client implementation", async () =>
 test("keeps the video-audited lead strings and the single live monitor", async () => {
   const trainer = await readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8");
 
-  assert.match(trainer, /const holdString: StringNumber = variation === "low" \? 3 : 2/);
-  assert.match(trainer, /\[1, "note", 3, 10\], \[2, "note", 3, 12\], \[3, "note", 3, 10, 2\]/);
+  assert.match(trainer, /const holdString: StringNumber = variation === "low" \? 1 : 2/);
+  assert.match(trainer, /\[1, "note", 1, 10\], \[2, "note", 1, 12\], \[3, "note", 1, 10, 2\]/);
   assert.match(trainer, /70: \[[\s\S]*?stringNo: 2, text: "7"[\s\S]*?stringNo: 3, text: "4"[\s\S]*?stringNo: 2, text: "8"[\s\S]*?stringNo: 3, text: "5"/);
   assert.match(trainer, /79: \[[\s\S]*?stringNo: 1, text: "12"[\s\S]*?technique: "full"/);
   assert.match(trainer, /142: \[[\s\S]*?stringNo: 4, text: "12"[\s\S]*?stringNo: 1, text: "13"/);
