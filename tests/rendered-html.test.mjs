@@ -30,7 +30,7 @@ test("server-renders the finished guitar trainer", async () => {
 
   const html = (await response.text()).replaceAll("<!-- -->", "");
   assert.match(html, /<html lang="ja">/i);
-  assert.match(html, /<title>FRET \/ STEP — 人生オーバー Lead Trainer<\/title>/i);
+  assert.match(html, /<title>FRET \/ STEP — ギターTABトレーナー<\/title>/i);
   assert.match(html, /人生オーバー/);
   assert.match(html, />LEAD</);
   assert.match(html, /惑う星/);
