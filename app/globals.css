@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+:root {
+  --page: #0c0a09;
+  --panel: #1c1917;
+  --panel-soft: #292524;
+  --line: #44403c;
+  --muted: #a8a29e;
+  --text: #fafaf9;
+  --accent: #bef264;
+  --accent-ink: #1a2e05;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  background: var(--page);
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font-family:
+    Inter, "Noto Sans JP", "Yu Gothic UI", "Hiragino Kaku Gothic ProN",
+    system-ui, sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.progress-fill {
+  width: var(--progress);
+}
+
+.tab-measure {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(2.35rem, 1fr));
+  grid-template-rows: repeat(6, 1.55rem);
+  min-width: 22rem;
+  border-inline: 1px solid #57534e;
+  background: #1c1917;
+}
+
+.tab-string-line {
+  pointer-events: none;
+  grid-column: 1 / -1;
+  border-top: 1px solid #78716c;
+  align-self: center;
+}
+
+.tab-symbol {
+  z-index: 10;
+  place-self: center;
+  min-width: 2rem;
+  min-height: 2rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #1c1917;
+  color: #e7e5e4;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+button.tab-symbol {
+  cursor: pointer;
+}
+
+.tab-symbol[data-current="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.tab-symbol[data-learned="true"]:not([data-current="true"]) {
+  color: var(--accent);
+}
+
+.tab-rest {
+  color: #78716c;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.fret-cell[data-current="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 900;
+}
+
+.fret-cell[data-string="false"] {
+  opacity: 0.26;
+}
+
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .tab-measure {
+    min-width: 19rem;
+    grid-template-columns: repeat(8, minmax(2rem, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}
