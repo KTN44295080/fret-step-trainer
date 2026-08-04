@@ -187,6 +187,74 @@ button.tab-symbol {
   color: #365314;
 }
 
+.score-measure {
+  min-width: 0;
+}
+
+.score-measure[data-playing="true"] > section {
+  border-color: var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.judge-dock[data-matched="true"] {
+  border-color: var(--accent);
+}
+
+.technique-guide-visual {
+  position: relative;
+  display: grid;
+  min-height: 6.5rem;
+  grid-template-columns: 3.5rem 1fr 3.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
+  border: 1px solid #44403c;
+  border-radius: 0.75rem;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0, transparent 1.05rem, #44403c 1.05rem, #44403c 1.12rem),
+    #1c1917;
+  padding: 1rem;
+  color: #f5f5f4;
+  text-align: center;
+}
+
+.technique-guide-visual strong {
+  position: relative;
+  z-index: 1;
+  border-radius: 0.55rem;
+  background: #0c0a09;
+  padding: 0.7rem 0.5rem;
+  color: #bef264;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.technique-guide-hand,
+.technique-guide-pick {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 2.5rem;
+  place-items: center;
+  border: 1px solid #57534e;
+  border-radius: 999px;
+  background: #292524;
+  color: #d6d3d1;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.technique-guide-visual[data-kind="mute"] strong,
+.technique-guide-visual[data-kind="bend"] strong {
+  color: #fcd34d;
+}
+
+.technique-guide-visual[data-kind="harmonic"] strong {
+  color: #bae6fd;
+}
+
 .video-frame {
   position: relative;
   aspect-ratio: 16 / 9;
