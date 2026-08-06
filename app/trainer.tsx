@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import tabAuditData from "./tab-audit-data.json";
 import {
   centsBetween,
   clamp,
+  detectPitch,
   frequencyFor,
   nearestPlaybackRate,
   playbackPositionSteps,
@@ -389,7 +391,27 @@ const TECHNIQUE_TAB_GLYPHS: Record<number, ScoreGlyph[]> = {
 };
 
 type SongId = "life-over" | "madow";
-type TrackId = "lead" | "backing";
+type TrackId = "lead" | "backing" | "third";
+
+type TrackInfo = {
+  label: string;
+  badge: string;
+  videoId: string;
+  videoStartSeconds: number;
+  videoStartLabel: string;
+  description: string;
+};
+
+type SongDefinition = {
+  title: string;
+  artist: string;
+  totalMeasures: number;
+  originalBpm: number;
+  capo: number;
+  map: SongPart[];
+  defaultTrack: TrackId;
+  tracks: Partial<Record<TrackId, TrackInfo>>;
+};
 
 type SongPart = {
   label: string;
@@ -672,7 +694,7 @@ const MADOW_SONG_MAP: SongPart[] = [
   { label: "アウトロ", range: "192–207", start: 192, end: 207, kind: "technique" },
 ];
 
-const SONGS = {
+const SONGS: Record<SongId, SongDefinition> = {
   "life-over": {
     title: "人生オーバー",
     artist: "harha Guitar TAB",
@@ -698,6 +720,14 @@ const SONGS = {
         videoStartLabel: "TAB 3:35",
         description: "同じ動画の上段を区間ごとに照合した練習用バッキングTAB。小節位置はリードと共通なので、切り替えても同じ位置を保ちます。",
       },
+      third: {
+        label: "追加ギター（中央段）",
+        badge: "GUITAR 3",
+        videoId: "6LfUfHSIiMw",
+        videoStartSeconds: 215,
+        videoStartLabel: "TAB 3:35",
+        description: "原動画の中央段に譜面が現れる区間だけを抽出した第3ギターTAB。空の小節は休みとしてそのまま残します。",
+      },
     },
   },
   madow: {
@@ -715,7 +745,7 @@ const SONGS = {
         videoId: "85ORTRtwmF4",
         videoStartSeconds: 1.2,
         videoStartLabel: "TAB 約0:01",
-        description: "送ってもらったリード動画の207小節構成を元にした暫定データ譜です。休符と主要区間は確認済みですが、弦・フレット・奏法は小節ごとに動画監査を進めています。",
+        description: "送ってもらったリード動画を全207小節ぶんフレーム抽出し、6本の弦・フレット・奏法記号を読んだデータ譜です。表示・連続再生・判定はすべてこの同じデータを使います。",
       },
       backing: {
         label: "リズムギター（バッキング）",
@@ -723,11 +753,15 @@ const SONGS = {
         videoId: "vPexB7CEMGY",
         videoStartSeconds: 1,
         videoStartLabel: "TAB 約0:01",
-        description: "バッキング動画の207小節構成と冒頭を実フレームで確認した暫定データ譜です。主要コード／リズムの全小節照合が終わるまでは監査中として表示します。",
+        description: "バッキング動画を全207小節ぶんフレーム抽出して作ったリズムギターTABです。コードの縦積みも弦ごとに保持し、リードと同じ小節位置のまま切り替えられます。",
       },
     },
   },
-} as const;
+};
+
+function trackFor(song: SongDefinition, trackId: TrackId): TrackInfo {
+  return song.tracks[trackId] ?? song.tracks[song.defaultTrack]!;
+}
 
 type PlaybackEvent = {
   measure: number;
@@ -752,32 +786,71 @@ type PlaybackPreset = "page" | "section" | "full" | "remaining" | "loop";
 function parseFretSymbol(text: string) {
   if (text.includes("×") || text.startsWith("(")) return null;
   const match = text.match(/\d+/);
-  return match ? Number(match[0]) : null;
+  if (!match) return null;
+  const fret = Number(match[0]);
+  return Number.isInteger(fret) && fret >= 0 && fret <= 24 ? fret : null;
 }
 
+type AuditedTabData = Record<SongId, Partial<Record<TrackId, Record<string, ScoreGlyph[]>>>>;
+const AUDITED_TAB_DATA = tabAuditData as AuditedTabData;
+const AUDIT_REVIEW_MEASURES = new Set<string>();
+
+function auditedGlyphRecord(songId: SongId, trackId: TrackId) {
+  const source = AUDITED_TAB_DATA[songId]?.[trackId] ?? {};
+  return Object.fromEntries(Object.entries(source).map(([measure, glyphs]) => {
+    const safeGlyphs = glyphs.map((glyph) => ({
+      ...glyph,
+      symbols: glyph.symbols.map((symbol) => {
+        const numeric = symbol.text.replace(/[^0-9]/g, "");
+        if (!numeric || Number(numeric) <= 24) return symbol;
+        AUDIT_REVIEW_MEASURES.add(`${songId}:${trackId}:${measure}`);
+        return { ...symbol, text: "?" };
+      }),
+    }));
+    return [Number(measure), safeGlyphs];
+  })) as Record<number, ScoreGlyph[]>;
+}
+
+const AUDITED_GLYPHS: Record<SongId, Partial<Record<TrackId, Record<number, ScoreGlyph[]>>>> = {
+  "life-over": {
+    lead: auditedGlyphRecord("life-over", "lead"),
+    backing: auditedGlyphRecord("life-over", "backing"),
+    third: auditedGlyphRecord("life-over", "third"),
+  },
+  madow: {
+    lead: auditedGlyphRecord("madow", "lead"),
+    backing: auditedGlyphRecord("madow", "backing"),
+  },
+};
+
+const AUDITED_NOTES: Record<SongId, Partial<Record<TrackId, ReturnType<typeof notesFromGlyphs>>>> = {
+  "life-over": {
+    lead: notesFromGlyphs(AUDITED_GLYPHS["life-over"].lead!, "life-lead-audit"),
+    backing: notesFromGlyphs(AUDITED_GLYPHS["life-over"].backing!, "life-backing-audit"),
+    third: notesFromGlyphs(AUDITED_GLYPHS["life-over"].third!, "life-third-audit"),
+  },
+  madow: {
+    lead: notesFromGlyphs(AUDITED_GLYPHS.madow.lead!, "madow-lead-audit"),
+    backing: notesFromGlyphs(AUDITED_GLYPHS.madow.backing!, "madow-backing-audit"),
+  },
+};
+
 function glyphsForTrack(songId: SongId, trackId: TrackId, measure: number) {
-  if (songId === "life-over" && trackId === "backing") return LIFE_BACKING_TAB_GLYPHS[measure];
-  if (songId === "madow" && trackId === "lead") return MADOW_LEAD_TAB_GLYPHS[measure];
-  if (songId === "madow" && trackId === "backing") return MADOW_TAB_GLYPHS[measure];
-  return TECHNIQUE_TAB_GLYPHS[measure];
+  return AUDITED_GLYPHS[songId]?.[trackId]?.[measure] ?? [];
 }
 
 function notesForTrack(songId: SongId, trackId: TrackId) {
-  if (songId === "life-over" && trackId === "lead") return LIFE_OVER_NOTES;
-  if (songId === "life-over") return LIFE_BACKING_NOTES;
-  if (trackId === "lead") return MADOW_LEAD_NOTES;
-  return MADOW_BACKING_NOTES;
+  return AUDITED_NOTES[songId]?.[trackId] ?? [];
 }
 
 function scoreAuditStatus(songId: SongId, trackId: TrackId, measure: number) {
-  if (songId === "life-over" && trackId === "lead") {
-    const coveredByProvidedScreenshot = measure <= 20 || measure >= 34;
-    return coveredByProvidedScreenshot
-      ? { label: "スクショ照合", tone: "verified" as const }
-      : { label: "休符区間・要確認", tone: "draft" as const };
+  const glyphs = AUDITED_GLYPHS[songId]?.[trackId]?.[measure] ?? [];
+  if (AUDIT_REVIEW_MEASURES.has(`${songId}:${trackId}:${measure}`)) {
+    return { label: "数字を動画で要確認", tone: "review" as const };
   }
-  if (songId === "life-over") return { label: "提供スクショ参照", tone: "verified" as const };
-  return { label: "動画から暫定生成", tone: "draft" as const };
+  return glyphs.length > 0
+    ? { label: "原動画フレーム読取", tone: "verified" as const }
+    : { label: "原動画上で休み", tone: "rest" as const };
 }
 
 function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number): PlaybackEvent[] {
@@ -808,7 +881,7 @@ function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number):
     }));
 }
 
-function videoTimeForMeasure(song: (typeof SONGS)[SongId], track: (typeof SONGS)[SongId]["tracks"][TrackId], measure: number) {
+function videoTimeForMeasure(song: SongDefinition, track: TrackInfo, measure: number) {
   return Math.round(videoTimeForPosition(track.videoStartSeconds, song.originalBpm, measure));
 }
 
@@ -865,80 +938,6 @@ const TUNER_STRINGS = [
   { stringNo: 2 as const, label: "2弦", name: "B3", frequency: 246.94 },
   { stringNo: 1 as const, label: "1弦", name: "E4", frequency: 329.63 },
 ] as const;
-
-function detectPitch(buffer: Float32Array, sampleRate: number, targetFrequency?: number, rmsThreshold = 0.004) {
-  let energy = 0;
-  for (const sample of buffer) energy += sample * sample;
-  const rms = Math.sqrt(energy / buffer.length);
-  if (rms < rmsThreshold) return null;
-
-  const searchRatio = Math.SQRT2;
-  const maximumFrequency = targetFrequency ? targetFrequency * searchRatio : 1100;
-  const minimumFrequency = targetFrequency ? targetFrequency / searchRatio : 65;
-  const minimumLag = Math.max(2, Math.floor(sampleRate / maximumFrequency));
-  const maximumLag = Math.min(
-    Math.ceil(sampleRate / minimumFrequency),
-    Math.floor(buffer.length / 2),
-  );
-  const usableLength = buffer.length - maximumLag;
-  const difference = new Float32Array(maximumLag + 1);
-  const normalized = new Float32Array(maximumLag + 1);
-
-  for (let lag = 1; lag <= maximumLag; lag += 1) {
-    let sum = 0;
-    for (let index = 0; index < usableLength; index += 1) {
-      const delta = buffer[index] - buffer[index + lag];
-      sum += delta * delta;
-    }
-    difference[lag] = sum;
-  }
-
-  let runningSum = 0;
-  normalized[0] = 1;
-  for (let lag = 1; lag <= maximumLag; lag += 1) {
-    runningSum += difference[lag];
-    normalized[lag] = runningSum === 0 ? 1 : (difference[lag] * lag) / runningSum;
-  }
-
-  let bestLag = minimumLag;
-  if (targetFrequency) {
-    for (let lag = minimumLag + 1; lag < maximumLag; lag += 1) {
-      if (normalized[lag] < normalized[bestLag]) bestLag = lag;
-    }
-  } else {
-    let firstStrongMinimum: number | null = null;
-    for (let lag = minimumLag + 1; lag < maximumLag - 1; lag += 1) {
-      if (
-        normalized[lag] < 0.22
-        && normalized[lag] <= normalized[lag - 1]
-        && normalized[lag] < normalized[lag + 1]
-      ) {
-        firstStrongMinimum = lag;
-        break;
-      }
-    }
-    if (firstStrongMinimum !== null) {
-      bestLag = firstStrongMinimum;
-      const octaveLag = firstStrongMinimum * 2;
-      if (
-        octaveLag < maximumLag
-        && normalized[octaveLag] < normalized[firstStrongMinimum] * 0.8
-      ) bestLag = octaveLag;
-    } else {
-      for (let lag = minimumLag + 1; lag < maximumLag; lag += 1) {
-        if (normalized[lag] < normalized[bestLag]) bestLag = lag;
-      }
-    }
-  }
-  if (normalized[bestLag] > (targetFrequency ? 0.34 : 0.28)) return null;
-
-  const before = normalized[bestLag - 1] ?? normalized[bestLag];
-  const center = normalized[bestLag];
-  const after = normalized[bestLag + 1] ?? normalized[bestLag];
-  const denominator = before - 2 * center + after;
-  const adjustment = denominator === 0 ? 0 : (before - after) / (2 * denominator);
-  return sampleRate / (bestLag + adjustment);
-}
 
 function TabMeasure({
   measure,
@@ -1110,34 +1109,22 @@ function ScoreMeasure({
   songId,
   trackId,
   measure,
-  currentId,
-  learnedIds,
-  onSelect,
   isPlaying,
 }: {
   songId: SongId;
   trackId: TrackId;
   measure: number;
-  currentId: string;
-  learnedIds: Set<string>;
-  onSelect: (id: string) => void;
   isPlaying: boolean;
 }) {
   const audit = scoreAuditStatus(songId, trackId, measure);
-  const proceduralGlyphs = glyphsForTrack(songId, trackId, measure) ?? [];
-  const proceduralLabel = trackId === "lead" ? "LEAD GUITAR" : "BACKING GUITAR";
-  const score = songId !== "life-over" || trackId === "backing"
-    ? <ProceduralTabMeasure measure={measure} glyphs={proceduralGlyphs} label={proceduralLabel} />
-    : TECHNIQUE_TAB_GLYPHS[measure]
-      ? <TechniqueTabMeasure measure={measure} />
-      : TAB_EVENTS.some((event) => event.measure === measure)
-        ? <TabMeasure measure={measure} currentId={currentId} learnedIds={learnedIds} onSelect={onSelect} />
-        : <RestTabMeasure measure={measure} />;
+  const proceduralGlyphs = glyphsForTrack(songId, trackId, measure);
+  const proceduralLabel = trackId === "lead" ? "LEAD GUITAR" : trackId === "backing" ? "BACKING GUITAR" : "GUITAR 3";
+  const score = <ProceduralTabMeasure measure={measure} glyphs={proceduralGlyphs} label={proceduralLabel} />;
 
   return (
     <div className="score-measure" data-playing={isPlaying}>
       <div className="mb-1 flex items-center justify-end">
-        <span className="rounded-md border px-2 py-1 text-[0.65rem] font-black data-[tone=verified]:border-emerald-700 data-[tone=verified]:text-emerald-300 data-[tone=draft]:border-amber-800 data-[tone=draft]:text-amber-300" data-tone={audit.tone}>
+        <span className="rounded-md border px-2 py-1 text-[0.65rem] font-black data-[tone=verified]:border-emerald-700 data-[tone=verified]:text-emerald-300 data-[tone=review]:border-amber-600 data-[tone=review]:text-amber-300 data-[tone=rest]:border-stone-700 data-[tone=rest]:text-stone-500" data-tone={audit.tone}>
           {audit.label}
         </span>
       </div>
@@ -1268,7 +1255,7 @@ export function GuitarTrainer() {
         };
         window.queueMicrotask(() => {
           if (saved.songId && SONGS[saved.songId]) setSongId(saved.songId);
-          if (saved.trackId === "lead" || saved.trackId === "backing") setTrackId(saved.trackId);
+          if (saved.trackId === "lead" || saved.trackId === "backing" || saved.trackId === "third") setTrackId(saved.trackId);
           if (typeof saved.bpm === "number") setBpm(saved.bpm);
           if (typeof saved.timelineMeasure === "number") {
             restoredMeasureRef.current = saved.timelineMeasure;
@@ -1316,9 +1303,14 @@ export function GuitarTrainer() {
   }, [auditNotes, bpm, countIn, inputSensitivity, learnedIds, loopEnabled, loopEnd, loopStart, metronome, songId, timelineMeasure, trackId, tunerString, videoSync]);
 
   const song = SONGS[songId];
-  const track = song.tracks[trackId];
-  const activeNotes = notesForTrack(songId, trackId);
+  const effectiveTrackId = song.tracks[trackId] ? trackId : song.defaultTrack;
+  const track = trackFor(song, effectiveTrackId);
+  const activeNotes = notesForTrack(songId, effectiveTrackId);
   const activeScorePages = scorePages(song.totalMeasures);
+
+  useEffect(() => {
+    if (effectiveTrackId !== trackId) window.queueMicrotask(() => setTrackId(effectiveTrackId));
+  }, [effectiveTrackId, trackId]);
 
   useEffect(() => {
     const restoredMeasure = restoredMeasureRef.current;
@@ -1557,20 +1549,37 @@ export function GuitarTrainer() {
           setLearnedIds((previous) => new Set(previous).add(currentNote.id));
           if (noteIndex < activeNotes.length - 1) {
             const nextIndex = noteIndex + 1;
+            const nextNote = activeNotes[nextIndex];
             moveToNoteIndex(nextIndex);
             if (guidedMode) {
               setGuidedWaiting(false);
-              const nextNote = activeNotes[nextIndex];
-              const guideTimer = window.setTimeout(() => {
-                const context = getAudioContext();
-                void context.resume();
-                schedulePluck(context, nextNote.stringNo, nextNote.fret, context.currentTime + 0.04, 0.55);
-                const waitTimer = window.setTimeout(() => setGuidedWaiting(true), 700);
-                timerIdsRef.current.push(waitTimer);
-              }, 120);
-              timerIdsRef.current.push(guideTimer);
+              const currentAbsoluteStep = (currentNote.measure - 1) * 16 + currentNote.tick * 2;
+              const nextAbsoluteStep = (nextNote.measure - 1) * 16 + nextNote.tick * 2;
+              const transitionSteps = Math.max(1, nextAbsoluteStep - currentAbsoluteStep);
+              const fromVideoTime = videoTimeForPosition(
+                track.videoStartSeconds,
+                song.originalBpm,
+                currentNote.measure,
+                currentNote.tick * 2,
+              );
+              const nextVideoTime = videoTimeForPosition(
+                track.videoStartSeconds,
+                song.originalBpm,
+                nextNote.measure,
+                nextNote.tick * 2,
+              );
+              sendVideoCommand("seekTo", [fromVideoTime, true]);
+              sendVideoCommand("setPlaybackRate", [bpm / song.originalBpm]);
+              sendVideoCommand("playVideo");
+              const gateTimer = window.setTimeout(() => {
+                sendVideoCommand("pauseVideo");
+                sendVideoCommand("seekTo", [nextVideoTime, true]);
+                setGuidedWaiting(true);
+              }, Math.max(180, transitionSteps * (15 / bpm) * 1000));
+              timerIdsRef.current.push(gateTimer);
             }
           } else {
+            sendVideoCommand("pauseVideo");
             setGuidedMode(false);
             setGuidedWaiting(false);
           }
@@ -1590,9 +1599,7 @@ export function GuitarTrainer() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-    // schedulePluck intentionally reads the current capo; targetFrequency changes with the same inputs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeNotes, autoAdvance, currentNote.fret, currentNote.id, currentNote.stringNo, guidedMode, guidedWaiting, inputEnabled, inputMode, inputSensitivity, moveToNoteIndex, noteIndex, playing, selectedDeviceId, targetFrequency, tunerDetectionTarget]);
+  }, [activeNotes, autoAdvance, bpm, currentNote.fret, currentNote.id, currentNote.measure, currentNote.stringNo, currentNote.tick, guidedMode, guidedWaiting, inputEnabled, inputMode, inputSensitivity, moveToNoteIndex, noteIndex, playing, selectedDeviceId, sendVideoCommand, song.originalBpm, targetFrequency, track.videoStartSeconds, tunerDetectionTarget]);
 
   function getAudioContext() {
     if (!audioContextRef.current) {
@@ -1680,13 +1687,16 @@ export function GuitarTrainer() {
     setInputMode("judge");
     setAutoAdvance(false);
     setGuidedMode(true);
-    setGuidedWaiting(false);
+    setGuidedWaiting(true);
     if (!inputEnabled) void connectInput(selectedDeviceId || undefined);
-    const context = getAudioContext();
-    void context.resume();
-    schedulePluck(context, currentNote.stringNo, currentNote.fret, context.currentTime + 0.04, 0.55);
-    const waitTimer = window.setTimeout(() => setGuidedWaiting(true), 700);
-    timerIdsRef.current.push(waitTimer);
+    sendVideoCommand("seekTo", [videoTimeForPosition(
+      track.videoStartSeconds,
+      song.originalBpm,
+      currentNote.measure,
+      currentNote.tick * 2,
+    ), true]);
+    sendVideoCommand("setPlaybackRate", [bpm / song.originalBpm]);
+    sendVideoCommand("pauseVideo");
   }
 
   function stopGuidedMode() {
@@ -1959,12 +1969,6 @@ export function GuitarTrainer() {
     playRange(currentNote.measure, currentNote.measure, `${currentNote.measure}小節`);
   }
 
-  function selectNote(id: string) {
-    stopPlayback();
-    const nextIndex = activeNotes.findIndex((note) => note.id === id);
-    if (nextIndex >= 0) moveToNoteIndex(nextIndex);
-  }
-
   function goBy(delta: number) {
     stopPlayback();
     moveToNoteIndex(noteIndex + delta);
@@ -2015,10 +2019,8 @@ export function GuitarTrainer() {
   function switchSong(nextSongId: SongId) {
     if (nextSongId === songId) return;
     const nextSong = SONGS[nextSongId];
-    // Both songs expose the same two parts. Keep the player's current
-    // lead/backing choice while comparing songs.
-    const nextTrackId = trackId;
-    const nextTrack = nextSong.tracks[nextTrackId];
+    const nextTrackId = nextSong.tracks[trackId] ? trackId : nextSong.defaultTrack;
+    const nextTrack = trackFor(nextSong, nextTrackId);
     stopPlayback();
     setSongId(nextSongId);
     setTrackId(nextTrackId);
@@ -2038,8 +2040,8 @@ export function GuitarTrainer() {
   }
 
   function switchTrack(nextTrackId: TrackId) {
-    if (nextTrackId === trackId) return;
-    const nextTrack = song.tracks[nextTrackId];
+    if (nextTrackId === trackId || !song.tracks[nextTrackId]) return;
+    const nextTrack = trackFor(song, nextTrackId);
     stopPlayback();
     setTrackId(nextTrackId);
     setNoteIndex(0);
@@ -2100,15 +2102,14 @@ export function GuitarTrainer() {
                     <span>{candidate.title}</span>
                     {active && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
                   </span>
-                  <small className={cn("mt-1 block font-bold", active ? "text-lime-900" : "text-stone-500")}>リード／バッキング · {candidate.totalMeasures}小節</small>
+                  <small className={cn("mt-1 block font-bold", active ? "text-lime-900" : "text-stone-500")}>{Object.keys(candidate.tracks).length}パート切替 · {candidate.totalMeasures}小節</small>
                 </button>
               );
             })}
           </div>
 
           <div className="mt-3 grid gap-2 rounded-2xl border border-stone-800 bg-stone-900 p-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="ギターパートを選択">
-            {(["lead", "backing"] as TrackId[]).map((candidateTrackId) => {
-              const candidateTrack = song.tracks[candidateTrackId];
+            {(Object.entries(song.tracks) as Array<[TrackId, TrackInfo]>).map(([candidateTrackId, candidateTrack]) => {
               const active = trackId === candidateTrackId;
               return (
                 <button
@@ -2131,12 +2132,6 @@ export function GuitarTrainer() {
                 </button>
               );
             })}
-            {songId === "life-over" && (
-              <button aria-disabled="true" className="min-h-14 cursor-not-allowed rounded-xl border border-dashed border-amber-800 bg-stone-950 px-4 py-3 text-left text-stone-500" disabled type="button">
-                <span className="flex items-center justify-between gap-3 font-black"><span>追加ギター（第3段）</span><span className="rounded-full border border-amber-800 px-2 py-0.5 text-[10px] text-amber-300">監査中</span></span>
-                <small className="mt-1 block text-pretty font-bold">66小節以降に現れる中央段。原動画と照合後に有効化</small>
-              </button>
-            )}
           </div>
         </div>
       </header>
@@ -2199,9 +2194,9 @@ export function GuitarTrainer() {
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             {inputMode === "judge" ? (
               <div className="flex flex-wrap items-center gap-2">
-                <button className="min-h-10 rounded-xl bg-lime-300 px-4 text-xs font-black text-lime-950" onClick={guidedMode ? stopGuidedMode : startGuidedMode} type="button">{guidedMode ? "■ 正解待ち停止" : "▶ お手本→正解で進む"}</button>
+                <button className="min-h-10 rounded-xl bg-lime-300 px-4 text-xs font-black text-lime-950" onClick={guidedMode ? stopGuidedMode : startGuidedMode} type="button">{guidedMode ? "■ 正解ゲート停止" : "▶ 正解で曲を進める"}</button>
                 <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold"><input className="size-4" type="checkbox" checked={autoAdvance} onChange={(event) => setAutoAdvance(event.target.checked)} />正解で次の音へ</label>
-                <span className="text-xs font-bold text-stone-500">{guidedMode ? (guidedWaiting ? (pitchMatched ? "正解 → 次のお手本" : "あなたの番。正しい音まで停止") : "お手本を再生中。入力判定は待機") : "譜面を見ながら判定"}</span>
+                <span className="text-xs font-bold text-stone-500">{guidedMode ? (guidedWaiting ? (pitchMatched ? "正解 → 次の音まで曲を再生" : "正しい音が来るまで曲を停止") : "次の判定位置まで曲を進行中") : "譜面を見ながら判定"}</span>
               </div>
             ) : (
               <div className="flex flex-wrap gap-1" aria-label="チューナーで判定する弦">
@@ -2282,7 +2277,7 @@ export function GuitarTrainer() {
                 <p className="text-sm font-bold text-lime-300">{track.badge} TAB · 全曲</p>
                 <h2 id="full-score-title" className="mt-1 text-balance text-2xl font-black">{track.label}を1〜{song.totalMeasures}小節</h2>
                 <p className="mt-2 max-w-2xl text-pretty text-sm text-stone-400">{track.description}</p>
-                <p className="mt-2 max-w-2xl text-pretty text-xs font-bold text-amber-300">各小節に出典状態を表示します。「動画監査中」は繰り返しパターンから起こした仮データで、原動画との最終照合前です。</p>
+                <p className="mt-2 max-w-2xl text-pretty text-xs font-bold text-stone-500">各小節は原動画の該当フレームから抽出しています。読取値がフレット範囲外なら「?」として再生・判定から除外し、動画確認が必要な小節を橙色で示します。訂正メモも小節単位で残せます。</p>
               </div>
               <label className="grid gap-1 text-xs font-bold text-stone-400">
                 小節へ移動
@@ -2374,7 +2369,7 @@ export function GuitarTrainer() {
 
             <div className="mt-5 grid gap-4 xl:grid-cols-2">
               {selectedScorePage.measures.map((measure) => (
-                <ScoreMeasure songId={songId} trackId={trackId} measure={measure} currentId={currentNote.id} learnedIds={learnedIds} onSelect={selectNote} isPlaying={playbackMeasure === measure} key={measure} />
+                <ScoreMeasure songId={songId} trackId={trackId} measure={measure} isPlaying={playbackMeasure === measure} key={measure} />
               ))}
             </div>
 
