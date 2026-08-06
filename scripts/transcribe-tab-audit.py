@@ -644,12 +644,195 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
     lead = life["lead"]  # type: ignore[index]
     backing = life["backing"]  # type: ignore[index]
 
+    def glyph(
+        slot: int,
+        *symbols: tuple[int, str],
+        technique: str | None = None,
+    ) -> dict[str, object]:
+        corrected: dict[str, object] = {
+            "slot": slot,
+            "symbols": [
+                {"stringNo": string_no, "text": text}
+                for string_no, text in symbols
+            ],
+        }
+        if technique is not None:
+            corrected["technique"] = technique
+        return corrected
+
+    # The narrow quarter-rest and note-stem shapes were the two recurring OCR
+    # failures in the lead track.  The native 1920x1080 source frames confirm
+    # that neither is a fret 1, and that the rest-shaped mark on string 3 is not
+    # a fret 7 outside the muted-note technique passage (measures 66-81).
+    for measure_text, measure_glyphs in lead.items():  # type: ignore[attr-defined]
+        measure = int(measure_text)
+        cleaned: list[dict[str, object]] = []
+        for current in measure_glyphs:
+            symbols = []
+            for symbol in current["symbols"]:
+                text = "×" if symbol["text"] == "亊" else symbol["text"]
+                if text == "1":
+                    continue
+                if not 66 <= measure <= 81 and symbol["stringNo"] == 3 and text == "7":
+                    continue
+                symbols.append({"stringNo": symbol["stringNo"], "text": text})
+            if symbols:
+                replacement = {**current, "symbols": symbols}
+                cleaned.append(replacement)
+        lead[measure_text] = cleaned
+
+    # Pickup and low-register phrases (the visible rests are intentionally not
+    # represented as fret glyphs).
+    lead["1"] = [
+        glyph(11, (5, "7")),
+        glyph(13, (5, "9")),
+        glyph(14, (4, "7")),
+    ]
+
     for measure in ("13", "53"):
         lead[measure][0] = {  # type: ignore[index]
             "slot": 0,
             "symbols": [{"stringNo": 5, "text": "(5)"}],
             "technique": "tie",
         }
+
+    for measure in ("3", "5", "7", "9", "11", "13", "15", "17", "51", "53", "55", "57"):
+        if lead[measure]:  # type: ignore[index]
+            lead[measure][0] = glyph(0, (5, "(5)"), technique="tie")  # type: ignore[index]
+
+    # Sustained all-string-3 phrase.  This explicitly covers the originally
+    # reported measure 45 error.
+    all_string_three = [
+        glyph(1, (3, "(10)"), technique="tie"),
+        glyph(3, (3, "10")),
+        glyph(5, (3, "12")),
+        glyph(7, (3, "10")),
+        glyph(11, (3, "10")),
+        glyph(13, (3, "10")),
+    ]
+    for measure in ("37", "45", "101", "109", "120", "128", "136"):
+        lead[measure] = all_string_three
+
+    # The companion cadence contains a printed rest between the second 10 and
+    # the three 9s.  Older data rendered that rest as an extra fret 7.
+    cadence = [
+        glyph(1, (3, "(10)"), technique="tie"),
+        glyph(3, (3, "10")),
+        glyph(7, (3, "9")),
+        glyph(11, (3, "9")),
+        glyph(13, (3, "9")),
+    ]
+    for measure in ("41", "49", "89", "97", "105", "113", "124", "132", "140"):
+        lead[measure] = cadence
+
+    # Lead technique passage, measures 66-81.  These are native-frame visual
+    # corrections for the places where rests, muted notes, and string numbers
+    # cannot be distinguished reliably by OCR.
+    lead["66"] = [
+        glyph(8, (3, "7"), (4, "7")),
+        glyph(12, (3, "×"), (4, "×")),
+        glyph(14, (4, "7")),
+    ]
+    lead["67"] = [
+        glyph(0, (4, "(7)"), technique="tie"),
+        glyph(2, (4, "9")),
+        glyph(8, (3, "×"), (4, "×")),
+        glyph(9, (3, "×"), (4, "×")),
+        glyph(10, (3, "7")),
+        glyph(12, (4, "9")),
+    ]
+    lead["68"] = [
+        glyph(2, (3, "×"), (4, "×")),
+        glyph(3, (3, "×"), (4, "×")),
+        glyph(4, (3, "7"), (4, "7")),
+        glyph(8, (4, "7")),
+        glyph(10, (5, "10")),
+        glyph(14, (5, "9")),
+    ]
+    lead["69"] = [
+        glyph(0, (5, "(9)"), technique="tie"),
+        glyph(2, (4, "7")),
+        glyph(6, (3, "×"), (4, "×")),
+        glyph(8, (3, "7")),
+        glyph(10, (3, "9")),
+        glyph(12, (2, "7")),
+        glyph(14, (2, "10")),
+    ]
+    lead["73"] = [
+        glyph(2, (4, "7")),
+        glyph(4, (4, "9")),
+        glyph(6, (3, "7")),
+        glyph(8, (3, "9")),
+        glyph(9, (3, "11"), technique="sl."),
+        glyph(10, (3, "9")),
+        glyph(12, (3, "7")),
+    ]
+    lead["79"] = [
+        glyph(3, (2, "12")),
+        glyph(7, (1, "10")),
+        glyph(9, (1, "12")),
+        glyph(11, (1, "10")),
+        glyph(13, (1, "12")),
+    ]
+    lead["80"] = [
+        glyph(4, (2, "10"), technique="H"),
+        glyph(5, (2, "12")),
+        glyph(7, (2, "10")),
+        glyph(9, (2, "×")),
+        glyph(10, (2, "7")),
+        glyph(12, (3, "9")),
+        glyph(14, (3, "7")),
+    ]
+
+    # Final special figures and outro, checked directly against measures
+    # 111-151 in the source video.
+    if lead["111"]:  # type: ignore[index]
+        lead["111"][-1] = glyph(13, (2, "10"))  # type: ignore[index]
+    lead["114"] = [
+        glyph(slot, (2, "14"), (4, "11"))
+        for slot in (0, 4, 8, 10, 12, 14)
+    ]
+    lead["115"] = [
+        glyph(2, (1, "12"), (3, "9")),
+        glyph(6, (1, "12"), (3, "9")),
+    ]
+    lead["116"] = [
+        glyph(9, (2, "<5>"), (3, "<5>"), (4, "<5>"), (5, "<5>"), technique="harm."),
+    ]
+    lead["142"] = [
+        glyph(1, (3, "(10)"), technique="tie"),
+        glyph(3, (4, "12")), glyph(5, (3, "10")), glyph(7, (3, "12")),
+        glyph(9, (2, "10")), glyph(11, (2, "13")), glyph(13, (1, "13")),
+    ]
+    lead["143"] = [
+        glyph(0, (1, "10")), glyph(2, (1, "13")), glyph(4, (1, "12")),
+        glyph(6, (2, "13")), glyph(8, (3, "12"), technique="sl."),
+        glyph(10, (3, "10")),
+    ]
+    lead["144"] = [
+        glyph(1, (3, "(10)"), technique="tie"), glyph(3, (3, "12")),
+        glyph(5, (2, "10")), glyph(7, (3, "10")), glyph(12, (4, "10")),
+    ]
+    lead["145"] = [
+        glyph(0, (3, "12")), glyph(2, (2, "10")), glyph(4, (2, "13")),
+        glyph(6, (2, "10")), glyph(8, (3, "12")), glyph(10, (3, "10")),
+        glyph(12, (3, "12")), glyph(15, (3, "10")),
+    ]
+    lead["146"] = [
+        glyph(0, (3, "(10)"), technique="tie"), glyph(3, (4, "12")),
+        glyph(5, (3, "10")), glyph(7, (3, "12")),
+        glyph(9, (3, "14"), technique="sl."), glyph(10, (2, "13")),
+        glyph(13, (1, "17")),
+    ]
+    lead["147"] = [
+        glyph(0, (2, "15")), glyph(2, (1, "13")), glyph(4, (1, "12")),
+        glyph(6, (1, "13")), glyph(8, (1, "12")), glyph(10, (2, "13")),
+    ]
+    lead["148"] = [
+        glyph(slot, (1, "13"), (3, "10")) for slot in (2, 6, 10, 12)
+    ]
+    for measure in ("149", "150", "151"):
+        lead[measure] = []
 
     backing["11"][0] = {  # type: ignore[index]
         "slot": 0,
@@ -706,7 +889,19 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=ROOT / "app" / "tab-audit-data.json")
     parser.add_argument("--report", type=Path, default=ROOT / "audit" / "transcription-report.json")
+    parser.add_argument(
+        "--repair-existing",
+        action="store_true",
+        help="apply native-frame corrections to the existing JSON without rerunning OCR",
+    )
     args = parser.parse_args()
+
+    if args.repair_existing:
+        data = json.loads(args.output.read_text(encoding="utf-8"))
+        apply_manual_corrections(data)
+        args.output.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        print(f"repaired {args.output}")
+        return
 
     if not OCR_TOOLS.exists():
         raise SystemExit("OCR tools are missing. Install rapidocr_onnxruntime under audit/ocr-tools first.")

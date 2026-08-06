@@ -132,6 +132,9 @@ test("keeps the video-audited lead strings and the single live monitor", async (
   ]);
   const tabData = JSON.parse(tabDataText);
   const measure45Symbols = tabData["life-over"].lead["45"].flatMap((glyph) => glyph.symbols);
+  const allLeadSymbols = Object.values(tabData["life-over"].lead)
+    .flatMap((measure) => measure)
+    .flatMap((glyph) => glyph.symbols);
   const lifeCorrections = {
     lead13: tabData["life-over"].lead["13"][0],
     lead53: tabData["life-over"].lead["53"][0],
@@ -141,6 +144,39 @@ test("keeps the video-audited lead strings and the single live monitor", async (
 
   assert.deepEqual([...new Set(measure45Symbols.map((symbol) => symbol.stringNo))], [3]);
   assert.deepEqual(measure45Symbols.map((symbol) => symbol.text), ["(10)", "10", "12", "10", "10", "10"]);
+  assert.equal(allLeadSymbols.some((symbol) => symbol.text === "1" || symbol.text === "亊"), false);
+  assert.deepEqual(tabData["life-over"].lead["1"], [
+    { slot: 11, symbols: [{ stringNo: 5, text: "7" }] },
+    { slot: 13, symbols: [{ stringNo: 5, text: "9" }] },
+    { slot: 14, symbols: [{ stringNo: 4, text: "7" }] },
+  ]);
+  assert.deepEqual(tabData["life-over"].lead["80"].flatMap((glyph) => glyph.symbols), [
+    { stringNo: 2, text: "10" },
+    { stringNo: 2, text: "12" },
+    { stringNo: 2, text: "10" },
+    { stringNo: 2, text: "×" },
+    { stringNo: 2, text: "7" },
+    { stringNo: 3, text: "9" },
+    { stringNo: 3, text: "7" },
+  ]);
+  assert.deepEqual(tabData["life-over"].lead["114"][0].symbols, [
+    { stringNo: 2, text: "14" },
+    { stringNo: 4, text: "11" },
+  ]);
+  assert.deepEqual(tabData["life-over"].lead["116"][0].symbols, [
+    { stringNo: 2, text: "<5>" },
+    { stringNo: 3, text: "<5>" },
+    { stringNo: 4, text: "<5>" },
+    { stringNo: 5, text: "<5>" },
+  ]);
+  assert.deepEqual(tabData["life-over"].lead["147"].flatMap((glyph) => glyph.symbols), [
+    { stringNo: 2, text: "15" },
+    { stringNo: 1, text: "13" },
+    { stringNo: 1, text: "12" },
+    { stringNo: 1, text: "13" },
+    { stringNo: 1, text: "12" },
+    { stringNo: 2, text: "13" },
+  ]);
   assert.deepEqual(lifeCorrections.lead13, {
     slot: 0,
     symbols: [{ stringNo: 5, text: "(5)" }],

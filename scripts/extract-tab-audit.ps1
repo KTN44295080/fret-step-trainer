@@ -1,11 +1,12 @@
 param(
-  [string]$Ffmpeg = "ffmpeg"
+  [string]$Ffmpeg = "ffmpeg",
+  [switch]$HighResolution
 )
 
 $ErrorActionPreference = "Stop"
 $workspace = Split-Path -Parent $PSScriptRoot
 $videoCache = Join-Path $workspace "audit\video-cache"
-$auditRoot = Join-Path $workspace "audit\measure-frames"
+$auditRoot = Join-Path $workspace $(if ($HighResolution) { "audit\measure-frames-highres" } else { "audit\measure-frames" })
 
 $sources = @(
   [pscustomobject]@{ Song = "life-over"; Track = "lead"; Video = "6LfUfHSIiMw.mp4"; Offset = 215.0; Bpm = 170; Measures = 151 },
@@ -26,22 +27,27 @@ foreach ($source in $sources) {
   New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
   $outputPattern = Join-Path $outputDirectory "measure-%03d.jpg"
   $measureSeconds = 240.0 / $source.Bpm
-  $filter = "fps=1/$measureSeconds,scale=1280:-2"
+  # The normal set is retained for quick OCR experiments.  The high-resolution
+  # audit set is sampled in the middle of each measure and keeps the video's
+  # native 1920x1080 pixels so a fret number cannot drift onto another string.
+  $seekOffset = if ($HighResolution) { $source.Offset + ($measureSeconds / 2.0) } else { $source.Offset }
+  $filter = if ($HighResolution) { "fps=1/$measureSeconds" } else { "fps=1/$measureSeconds,scale=1280:-2" }
+  $quality = if ($HighResolution) { 1 } else { 3 }
 
-  & $Ffmpeg -hide_banner -loglevel error -y -ss $source.Offset -i $inputPath -vf $filter -frames:v $source.Measures -q:v 3 -start_number 1 $outputPattern
+  & $Ffmpeg -hide_banner -loglevel error -y -ss $seekOffset -i $inputPath -vf $filter -frames:v $source.Measures -q:v $quality -start_number 1 $outputPattern
   if ($LASTEXITCODE -ne 0) {
     throw "ffmpeg failed for $($source.Song) $($source.Track)"
   }
 
   $manifest = for ($measure = 1; $measure -le $source.Measures; $measure++) {
-    $timestamp = $source.Offset + (($measure - 1) * $measureSeconds)
+    $timestamp = $seekOffset + (($measure - 1) * $measureSeconds)
     [pscustomobject]@{
       song = $source.Song
       track = $source.Track
       measure = $measure
       video_seconds = [math]::Round($timestamp, 3)
       frame = "measure-{0:d3}.jpg" -f $measure
-      status = "pending-review"
+      status = if ($HighResolution) { "pending-visual-review" } else { "pending-review" }
       note = ""
     }
   }
