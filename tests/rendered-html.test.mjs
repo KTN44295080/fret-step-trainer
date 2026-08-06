@@ -132,9 +132,33 @@ test("keeps the video-audited lead strings and the single live monitor", async (
   ]);
   const tabData = JSON.parse(tabDataText);
   const measure45Symbols = tabData["life-over"].lead["45"].flatMap((glyph) => glyph.symbols);
+  const lifeCorrections = {
+    lead13: tabData["life-over"].lead["13"][0],
+    lead53: tabData["life-over"].lead["53"][0],
+    backing11: tabData["life-over"].backing["11"][0],
+    backing37: tabData["life-over"].backing["37"][0],
+  };
 
   assert.deepEqual([...new Set(measure45Symbols.map((symbol) => symbol.stringNo))], [3]);
   assert.deepEqual(measure45Symbols.map((symbol) => symbol.text), ["(10)", "10", "12", "10", "10", "10"]);
+  assert.deepEqual(lifeCorrections.lead13, {
+    slot: 0,
+    symbols: [{ stringNo: 5, text: "(5)" }],
+    technique: "tie",
+  });
+  assert.deepEqual(lifeCorrections.lead53, lifeCorrections.lead13);
+  assert.deepEqual(lifeCorrections.backing11.symbols, [
+    { stringNo: 2, text: "(2)" },
+    { stringNo: 3, text: "(3)" },
+    { stringNo: 4, text: "(2)" },
+    { stringNo: 6, text: "(2)" },
+  ]);
+  assert.deepEqual(lifeCorrections.backing37.symbols, [
+    { stringNo: 2, text: "(3)" },
+    { stringNo: 3, text: "(2)" },
+    { stringNo: 4, text: "(0)" },
+    { stringNo: 6, text: "(3)" },
+  ]);
   assert.ok(tabData["life-over"].third["66"].length > 0);
   assert.ok(tabData.madow.lead["100"].length > 0);
   assert.ok(tabData.madow.backing["205"].length > 0);

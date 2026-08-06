@@ -638,6 +638,41 @@ def set_nested(target: dict[str, object], key: str, value: object) -> None:
     target[song][track] = value  # type: ignore[index]
 
 
+def apply_manual_corrections(data: dict[str, object]) -> None:
+    """Apply notes confirmed from the source video after OCR transcription."""
+    life = data["life-over"]  # type: ignore[index]
+    lead = life["lead"]  # type: ignore[index]
+    backing = life["backing"]  # type: ignore[index]
+
+    for measure in ("13", "53"):
+        lead[measure][0] = {  # type: ignore[index]
+            "slot": 0,
+            "symbols": [{"stringNo": 5, "text": "(5)"}],
+            "technique": "tie",
+        }
+
+    backing["11"][0] = {  # type: ignore[index]
+        "slot": 0,
+        "symbols": [
+            {"stringNo": 2, "text": "(2)"},
+            {"stringNo": 3, "text": "(3)"},
+            {"stringNo": 4, "text": "(2)"},
+            {"stringNo": 6, "text": "(2)"},
+        ],
+        "technique": "tie",
+    }
+    backing["37"][0] = {  # type: ignore[index]
+        "slot": 0,
+        "symbols": [
+            {"stringNo": 2, "text": "(3)"},
+            {"stringNo": 3, "text": "(2)"},
+            {"stringNo": 4, "text": "(0)"},
+            {"stringNo": 6, "text": "(3)"},
+        ],
+        "technique": "tie",
+    }
+
+
 def update_manifests(reports: dict[str, object]) -> None:
     for source in SOURCES:
         if source.key.endswith(".third"):
@@ -683,6 +718,7 @@ def main() -> None:
         set_nested(data, source.key, measures)
         reports[source.key] = report
 
+    apply_manual_corrections(data)
     args.output.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     args.report.write_text(json.dumps(reports, ensure_ascii=False, indent=2), encoding="utf-8")
     update_manifests(reports)
