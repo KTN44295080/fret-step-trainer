@@ -2224,35 +2224,20 @@ export function GuitarTrainer() {
   }
 
   return (
-    <main className="min-h-dvh bg-stone-950 pb-16 text-stone-50">
+    <main className="min-h-dvh bg-stone-950 pb-12 text-stone-50">
       <header className="border-b border-stone-800 bg-stone-950">
-        <div className="mx-auto max-w-[160rem] px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="rounded-md bg-lime-300 px-2.5 py-1 text-xs font-black text-lime-950">FRET / STEP</span>
-              <span className="rounded-md border border-stone-700 px-2.5 py-1 text-xs font-bold text-stone-300">{track.badge}</span>
+        <div className="mx-auto max-w-[96rem] px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-baseline gap-3">
+              <h1 className="truncate text-balance text-2xl font-black sm:text-3xl">{song.title}</h1>
+              <span className="hidden text-sm font-bold text-stone-500 sm:inline">{track.label}</span>
             </div>
-              <h1 className="text-balance text-3xl font-black sm:text-4xl">{song.title}</h1>
-              <p className="mt-2 text-pretty text-sm text-stone-400 sm:text-base">{song.artist} · {track.label}</p>
-            </div>
-            <dl className="grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-xl border border-stone-800 bg-stone-900 px-4 py-3">
-                <dt className="text-[0.68rem] font-bold text-stone-500">ORIGINAL</dt>
-                <dd className="mt-1 font-black tabular-nums">{song.originalBpm} BPM</dd>
-              </div>
-              <div className="rounded-xl border border-stone-800 bg-stone-900 px-4 py-3">
-                <dt className="text-[0.68rem] font-bold text-stone-500">CAPO</dt>
-                <dd className="mt-1 font-black tabular-nums">{song.capo}</dd>
-              </div>
-              <div className="rounded-xl border border-stone-800 bg-stone-900 px-4 py-3">
-                <dt className="text-[0.68rem] font-bold text-stone-500">RHYTHM</dt>
-                <dd className="mt-1 font-black tabular-nums">4 / 4</dd>
-              </div>
-            </dl>
+            <p className="shrink-0 text-sm font-black text-stone-300 tabular-nums">
+              {song.originalBpm} BPM <span className="mx-2 text-stone-700">·</span> Capo {song.capo} <span className="mx-2 text-stone-700">·</span> 4/4
+            </p>
           </div>
 
-          <div className="mt-5 grid gap-2 rounded-2xl border border-stone-800 bg-stone-900 p-2 sm:grid-cols-2" aria-label="練習曲を選択">
+          <div className="mt-3 grid gap-2 sm:grid-cols-2" aria-label="練習曲を選択">
             {(["life-over", "madow"] as SongId[]).map((candidateId) => {
               const candidate = SONGS[candidateId];
               const active = songId === candidateId;
@@ -2260,7 +2245,7 @@ export function GuitarTrainer() {
                 <button
                   aria-pressed={active}
                   className={cn(
-                    "min-h-14 rounded-xl border px-4 py-3 text-left transition-colors",
+                    "min-h-11 rounded-xl border px-4 py-2 text-left transition-colors",
                     active
                       ? "border-lime-300 bg-lime-300 text-lime-950"
                       : "border-stone-700 bg-stone-950 text-stone-200 hover:border-lime-300",
@@ -2271,21 +2256,21 @@ export function GuitarTrainer() {
                 >
                   <span className="flex items-center justify-between gap-3 font-black">
                     <span>{candidate.title}</span>
-                    {active && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
+                    {active && <span className="text-xs">●</span>}
                   </span>
                 </button>
               );
             })}
           </div>
 
-          <div className="mt-3 grid gap-2 rounded-2xl border border-stone-800 bg-stone-900 p-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="ギターパートを選択">
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="ギターパートを選択">
             {(Object.entries(song.tracks) as Array<[TrackId, TrackInfo]>).map(([candidateTrackId, candidateTrack]) => {
               const active = trackId === candidateTrackId;
               return (
                 <button
                   aria-pressed={active}
                   className={cn(
-                    "min-h-14 rounded-xl border px-4 py-3 text-left transition-colors",
+                    "min-h-11 rounded-xl border px-4 py-2 text-left transition-colors",
                     active
                       ? "border-lime-300 bg-lime-300 text-lime-950"
                       : "border-stone-700 bg-stone-950 text-stone-200 hover:border-lime-300",
@@ -2296,7 +2281,7 @@ export function GuitarTrainer() {
                 >
                   <span className="flex items-center justify-between gap-3 font-black">
                     <span>{candidateTrack.label}</span>
-                    {active && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
+                    {active && <span className="text-xs">●</span>}
                   </span>
                 </button>
               );
@@ -2306,11 +2291,11 @@ export function GuitarTrainer() {
       </header>
 
       <details className="live-console border-b border-stone-700 bg-stone-950">
-        <summary className="mx-auto flex min-h-14 max-w-[160rem] cursor-pointer items-center justify-between gap-4 px-4 py-3 font-black sm:px-6 lg:px-8">
-          <span>Ampero入力・チューナー・TAB判定</span>
-          <span className="text-xs text-lime-300">{inputEnabled ? "接続中" : "必要な時だけ開く"}</span>
+        <summary className="mx-auto flex min-h-12 max-w-[96rem] cursor-pointer items-center justify-between gap-4 px-4 py-2 text-sm font-black sm:px-6 lg:px-8">
+          <span>Ampero・チューナー</span>
+          <span className="text-xs text-lime-300">{inputEnabled ? "接続中" : "開く"}</span>
         </summary>
-        <div className="mx-auto max-w-[160rem] px-4 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[96rem] px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
               <span className="rounded-md bg-lime-300 px-2 py-1 text-[0.68rem] font-black text-lime-950">LIVE MONITOR</span>
@@ -2388,15 +2373,15 @@ export function GuitarTrainer() {
         </div>
       </details>
 
-      <div className="mx-auto grid max-w-[160rem] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:px-8">
-        <div className="min-w-0 space-y-6">
-          <section className="overflow-hidden rounded-2xl border border-stone-800 bg-stone-900" aria-labelledby="video-title">
-            <div className="flex flex-col gap-4 border-b border-stone-800 p-4 sm:flex-row sm:items-end sm:justify-between sm:p-5">
-              <div>
-                <p className="text-sm font-bold text-lime-300">ORIGINAL VIDEO</p>
-                <h2 id="video-title" className="mt-1 text-balance text-2xl font-black">原曲動画</h2>
-                <p className="mt-2 text-pretty text-sm text-stone-400">{track.videoStartLabel}を1小節目として{song.originalBpm} BPMで換算。SONG MAPから選ぶと、{track.label}動画も同じ小節の位置へ移動します。</p>
-              </div>
+      <div className="mx-auto max-w-[96rem] px-4 py-4 sm:px-6 lg:px-8">
+        <div className="min-w-0 space-y-4">
+          <details className="overflow-hidden rounded-xl border border-stone-800 bg-stone-900" aria-labelledby="video-title">
+            <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-3 px-4 py-2 font-black">
+              <span id="video-title">原曲動画</span>
+              <span className="text-xs text-lime-300">{activeMeasure}小節から開く</span>
+            </summary>
+            <div className="flex flex-col gap-3 border-t border-stone-800 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+              <p className="text-pretty text-xs font-bold text-stone-500">SONG MAP・TABと同じ小節へ同期</p>
               <div className={cn("grid gap-2", track.videoStartSeconds === 0 ? "grid-cols-2" : "grid-cols-3")}>
                 <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-3 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={videoStart === 0} onClick={() => setVideoPreset(0)} type="button">演奏 0:00</button>
                 {track.videoStartSeconds > 0 && <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-3 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={videoStart === track.videoStartSeconds} onClick={() => setVideoPreset(track.videoStartSeconds, 1)} type="button">{track.videoStartLabel}</button>}
@@ -2418,92 +2403,59 @@ export function GuitarTrainer() {
                 title={`${song.title} ${track.label} TAB 動画`}
               />
             </div>
-          </section>
+          </details>
 
-          <section className="rounded-2xl border border-stone-800 bg-stone-900 p-4 sm:p-5" aria-labelledby="tempo-title">
-            <p className="text-sm font-bold text-lime-300">PRACTICE SPEED</p>
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <h2 id="tempo-title" className="text-balance text-xl font-black">練習テンポ</h2>
-              <p className="text-3xl font-black tabular-nums">{bpm}<span className="ml-1 text-xs text-stone-500">BPM</span></p>
-            </div>
-            <input className="mt-5 min-h-11 w-full" type="range" min="50" max={song.originalBpm} step="1" value={bpm} onChange={(event) => changeBpm(Number(event.target.value))} aria-label="練習テンポ" />
-            <div className="mt-2 flex justify-between text-xs text-stone-500 tabular-nums"><span>50</span><span>{song.originalBpm}</span></div>
-            <div className="mt-4 grid grid-cols-3 gap-2">
+          <section className="rounded-xl border border-stone-800 bg-stone-900 p-3 sm:p-4" aria-labelledby="tempo-title">
+            <div className="grid gap-3 lg:grid-cols-[auto_minmax(12rem,1fr)_auto_auto] lg:items-center">
+              <h2 id="tempo-title" className="text-sm font-black">速度 <span className="ml-2 text-xl text-lime-300 tabular-nums">{bpm}</span><span className="ml-1 text-xs text-stone-500">BPM</span></h2>
+              <input className="min-h-10 w-full" type="range" min="50" max={song.originalBpm} step="1" value={bpm} onChange={(event) => changeBpm(Number(event.target.value))} aria-label="練習テンポ" />
+              <div className="grid grid-cols-3 gap-1">
               {[0.5, 0.75, 1].map((ratio) => {
                 const value = Math.round(song.originalBpm * ratio);
                 return (
-                <button className="min-h-11 rounded-lg border border-stone-700 bg-stone-950 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={bpm === value} type="button" onClick={() => changeBpm(value)} key={ratio}>{Math.round(ratio * 100)}%</button>
+                <button className="min-h-10 rounded-lg border border-stone-700 bg-stone-950 px-3 text-xs font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={bpm === value} type="button" onClick={() => changeBpm(value)} key={ratio}>{Math.round(ratio * 100)}%</button>
                 );
               })}
-            </div>
-            <p className="mt-3 text-pretty text-xs font-bold text-stone-500">
-              {videoSync ? "動画同期ON：YouTubeが実際に再生できる速度へ即時スナップします。" : "動画同期OFF：1 BPM単位でTAB音源だけ速度を変えられます。"}
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-stone-800 pt-3">
-              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold sm:text-sm">
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold">
                 <input className="size-4" type="checkbox" checked={countIn} onChange={(event) => setCountIn(event.target.checked)} />
-                1小節カウント
+                カウント
               </label>
-              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold sm:text-sm">
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold">
                 <input className="size-4" type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />
-                クリック音
+                クリック
               </label>
+              </div>
             </div>
           </section>
 
-          <section className="rounded-2xl border border-stone-800 bg-stone-900 p-4 sm:p-6" aria-labelledby="song-map-title">
-            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-sm font-bold text-lime-300">SONG MAP</p>
-                <h2 id="song-map-title" className="mt-1 text-balance text-2xl font-black">曲のどこを弾いているか</h2>
-              </div>
-              <p className="text-pretty text-sm text-stone-400">{trackId === "backing" ? "バッキングTAB / 黄 = ミュート・アルペジオ区間" : "緑 = 単音TAB / 黄 = 特殊奏法 / 暗色 = リード休み"}</p>
-            </div>
+          <section className="rounded-xl border border-stone-800 bg-stone-900 p-3 sm:p-4" aria-labelledby="song-map-title">
+            <h2 id="song-map-title" className="mb-3 text-sm font-black text-lime-300">SONG MAP</h2>
             <SongMap parts={song.map} currentMeasure={activeMeasure} onJump={jumpScoreTo} />
           </section>
 
-          <section className="rounded-2xl border border-stone-700 bg-stone-900 p-4 shadow-xl sm:p-6" aria-labelledby="full-score-title">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-sm font-bold text-lime-300">{track.badge} TAB · 全曲</p>
-                <h2 id="full-score-title" className="mt-1 text-balance text-2xl font-black">{track.label}を1〜{song.totalMeasures}小節</h2>
-                <p className="mt-2 max-w-2xl text-pretty text-sm text-stone-400">{track.description}</p>
-              </div>
-              <label className="grid gap-1 text-xs font-bold text-stone-400">
-                小節へ移動
-                <select
-                  className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-3 text-sm font-bold text-stone-100"
-                  onChange={(event) => jumpScoreTo(activeScorePages[Number(event.target.value)].start)}
-                  value={scorePageIndex}
-                >
-                  {activeScorePages.map((page, index) => <option value={index} key={page.start}>{page.start}〜{page.end}小節</option>)}
-                </select>
-              </label>
+          <section className="rounded-xl border border-stone-700 bg-stone-900 p-3 sm:p-4" aria-labelledby="full-score-title">
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="full-score-title" className="text-balance text-xl font-black">{track.label} TAB</h2>
+              <p className="text-xs font-black text-stone-500 tabular-nums">1–{song.totalMeasures}小節</p>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-lime-300/60 bg-stone-950 p-4 sm:p-5">
-              <div>
-                <div>
-                  <p className="text-xs font-black text-lime-300">TAB音源でまとめ再生</p>
-                  <p className="mt-1 text-sm font-bold text-stone-200" aria-live="polite">
+            <div className="mt-3 rounded-xl border border-lime-300/60 bg-stone-950 p-3 sm:p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-black text-stone-200" aria-live="polite">
                     {playing
                       ? `再生中 · ${playbackLabel} · ${playbackMeasure ?? activeMeasure}小節`
                       : canResumeSelected
                         ? `停止中 · ${pausedSession?.label} · ${playbackMeasure ?? activeMeasure}小節`
-                        : `選択中 · ${selectedPlaybackChoice.label}`}
+                        : `${selectedPlaybackChoice.label}`}
                   </p>
-                </div>
+                  <p className="text-xs font-black text-lime-300 tabular-nums">{activeMeasure} / {song.totalMeasures} · {currentSongPart.label}</p>
               </div>
-              <div className="mt-4 rounded-xl border border-stone-800 bg-stone-900 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-3 text-xs font-black">
-                  <label htmlFor="song-measure-seek">再生位置</label>
-                  <output className="tabular-nums text-lime-300" htmlFor="song-measure-seek">
-                    {activeMeasure} / {song.totalMeasures}小節 · {currentSongPart.label}
-                  </output>
-                </div>
+              <div className="mt-2">
                 <input
                   aria-label="曲の再生位置を小節で移動"
-                  className="mt-1 min-h-10 w-full cursor-pointer"
+                  className="min-h-10 w-full cursor-pointer"
                   id="song-measure-seek"
                   max={song.totalMeasures}
                   min={1}
@@ -2512,29 +2464,13 @@ export function GuitarTrainer() {
                   type="range"
                   value={activeMeasure}
                 />
-                <div className="flex justify-between text-[10px] font-bold text-stone-500" aria-hidden="true">
+                <div className="flex justify-between text-[10px] font-bold text-stone-600" aria-hidden="true">
                   <span>1小節</span>
-                  <span>動かすと停止・その位置から再生</span>
                   <span>{song.totalMeasures}小節</span>
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-2 rounded-xl border border-stone-800 bg-stone-900 p-3 sm:grid-cols-[repeat(3,auto)_1fr] sm:items-center">
-                <button className="min-h-11 rounded-lg border border-stone-700 px-3 text-xs font-black hover:border-lime-300" onClick={() => { setLoopStart(activeMeasure); if (loopEnd < activeMeasure) setLoopEnd(activeMeasure); setPlaybackPreset("loop"); }} type="button">A = {loopStart}小節</button>
-                <button className="min-h-11 rounded-lg border border-stone-700 px-3 text-xs font-black hover:border-lime-300" onClick={() => { setLoopEnd(activeMeasure); if (loopStart > activeMeasure) setLoopStart(activeMeasure); setPlaybackPreset("loop"); }} type="button">B = {loopEnd}小節</button>
-                <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-black"><input className="size-4" checked={loopEnabled} onChange={(event) => setLoopEnabled(event.target.checked)} type="checkbox" />A/Bを反復</label>
-                <p className="text-pretty text-xs font-bold text-stone-500">SONG MAPかTABで位置を選び、A/Bボタンで練習区間を固定できます。</p>
-              </div>
-
-              <div className="mt-4 grid gap-2 rounded-xl border border-stone-800 bg-stone-900 p-3 sm:grid-cols-[repeat(3,minmax(5.5rem,auto))_1fr] sm:items-center" data-correct={pitchMatched}>
-                <p className="text-xs font-black text-stone-400">譜面横の判定</p>
-                <p className="text-sm font-black tabular-nums">狙い {noteName(targetFrequency)}</p>
-                <p className="text-sm font-black tabular-nums">入力 {detectedFrequency ? noteName(detectedFrequency) : "—"}</p>
-                <p className="text-pretty text-xs font-bold text-stone-400" aria-live="polite">{inputEnabled ? tunerMessage : "Amperoは上の入力パネルから接続"}</p>
-              </div>
-
-              <p className="mt-4 text-xs font-black text-stone-500">再生範囲を選択</p>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="再生範囲">
                 {playbackChoices.map((choice) => {
                   const selected = choice.id === playbackPreset;
                   const selectedAndPlaying = selected && playing;
@@ -2549,11 +2485,11 @@ export function GuitarTrainer() {
                         : `${choice.label}を選択`}
                       aria-pressed={selected}
                       className={cn(
-                        "relative min-h-16 rounded-xl border px-4 py-3 text-left text-sm font-black transition-colors",
+                        "relative min-h-14 rounded-lg border px-3 py-2 text-left text-sm font-black transition-colors",
                         selectedAndPlaying
-                          ? "border-red-400 bg-red-400/10 text-red-200 shadow-[0_0_0_1px_rgba(248,113,113,0.25)]"
+                          ? "border-red-400 bg-red-400/10 text-red-200"
                           : selected
-                          ? "border-lime-300 bg-lime-300 text-lime-950 shadow-[0_0_0_1px_rgba(190,242,100,0.35)]"
+                          ? "border-lime-300 bg-lime-300 text-lime-950"
                           : "border-stone-700 bg-stone-900 text-stone-200 hover:border-lime-300 hover:bg-stone-800",
                       )}
                       data-playing={selectedAndPlaying}
@@ -2577,10 +2513,22 @@ export function GuitarTrainer() {
                   );
                 })}
               </div>
-              <div className="mt-3 flex flex-col gap-2 border-t border-stone-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-pretty text-xs font-bold text-stone-500">停止後は同じ位置から再開。範囲変更や小節移動をすると停止位置を破棄します。</p>
-                <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-black"><input className="size-4" checked={videoSync} onChange={(event) => setVideoSync(event.target.checked)} type="checkbox" />動画もBPM・位置に同期</label>
-              </div>
+              {inputEnabled && <div className="judge-dock mt-3 grid gap-2 rounded-lg border border-stone-800 bg-stone-900 px-3 py-2 sm:grid-cols-[repeat(3,minmax(5.5rem,auto))_1fr] sm:items-center" data-matched={pitchMatched}>
+                <p className="text-xs font-black text-stone-400">TAB判定</p>
+                <p className="text-sm font-black tabular-nums">狙い {noteName(targetFrequency)}</p>
+                <p className="text-sm font-black tabular-nums">入力 {detectedFrequency ? noteName(detectedFrequency) : "—"}</p>
+                <p className="text-pretty text-xs font-bold text-stone-400" aria-live="polite">{tunerMessage}</p>
+              </div>}
+
+              <details className="mt-3 border-t border-stone-800 pt-2">
+                <summary className="min-h-10 cursor-pointer py-2 text-xs font-black text-stone-400">A/B・動画同期</summary>
+                <div className="grid gap-2 pb-2 sm:grid-cols-[repeat(3,auto)_1fr] sm:items-center">
+                  <button className="min-h-10 rounded-lg border border-stone-700 px-3 text-xs font-black hover:border-lime-300" onClick={() => { setLoopStart(activeMeasure); if (loopEnd < activeMeasure) setLoopEnd(activeMeasure); setPlaybackPreset("loop"); }} type="button">A = {loopStart}小節</button>
+                  <button className="min-h-10 rounded-lg border border-stone-700 px-3 text-xs font-black hover:border-lime-300" onClick={() => { setLoopEnd(activeMeasure); if (loopStart > activeMeasure) setLoopStart(activeMeasure); setPlaybackPreset("loop"); }} type="button">B = {loopEnd}小節</button>
+                  <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-black"><input className="size-4" checked={loopEnabled} onChange={(event) => setLoopEnabled(event.target.checked)} type="checkbox" />反復</label>
+                  <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-black"><input className="size-4" checked={videoSync} onChange={(event) => setVideoSync(event.target.checked)} type="checkbox" />動画同期</label>
+                </div>
+              </details>
             </div>
 
             <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -2608,7 +2556,13 @@ export function GuitarTrainer() {
             </details>
           </section>
 
-          <section className="overflow-hidden rounded-2xl border border-stone-700 bg-stone-900 shadow-xl" aria-labelledby="current-note-title">
+          <details className="overflow-hidden rounded-xl border border-stone-800 bg-stone-900">
+            <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-3 px-4 py-2 font-black">
+              <span>学習ガイド</span>
+              <span className="text-xs text-stone-500">現在の音・指板・奏法</span>
+            </summary>
+            <div className="space-y-4 border-t border-stone-800 p-3 sm:p-4">
+          <section className="overflow-hidden rounded-xl border border-stone-700 bg-stone-950" aria-labelledby="current-note-title">
             <div className="flex flex-col gap-6 border-b border-stone-700 p-5 sm:p-7">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -2693,7 +2647,7 @@ export function GuitarTrainer() {
             </div>
           </section>
 
-          {songId === "life-over" && trackId === "lead" && <section className="rounded-2xl border border-stone-800 bg-stone-900 p-4 sm:p-6" aria-labelledby="technique-title">
+          {songId === "life-over" && trackId === "lead" && <section className="rounded-xl border border-stone-700 bg-stone-950 p-4 sm:p-6" aria-labelledby="technique-title">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-sm font-bold text-lime-300">PLAYING GUIDE</p>
@@ -2709,10 +2663,17 @@ export function GuitarTrainer() {
               ))}
             </div>
           </section>}
+            </div>
+          </details>
         </div>
 
-        <aside className="space-y-6">
-          <section className="rounded-2xl border border-stone-800 bg-stone-900 p-5" aria-labelledby="lesson-title">
+        <details className="mt-4 overflow-hidden rounded-xl border border-stone-800 bg-stone-900">
+          <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-3 px-4 py-2 font-black">
+            <span>TABの基本・進捗</span>
+            <span className="text-xs text-stone-500">必要な時だけ開く</span>
+          </summary>
+          <div className="grid gap-4 border-t border-stone-800 p-3 sm:p-4 lg:grid-cols-2">
+          <section className="rounded-xl border border-stone-800 bg-stone-950 p-5" aria-labelledby="lesson-title">
             <p className="text-sm font-bold text-lime-300">TAB MINI LESSON</p>
             <h2 id="lesson-title" className="mt-2 text-balance text-xl font-black">これだけ分かれば弾ける</h2>
             <ol className="mt-5 space-y-4">
@@ -2731,7 +2692,7 @@ export function GuitarTrainer() {
             </ol>
           </section>
 
-          <section className="rounded-2xl border border-stone-800 bg-stone-900 p-5" aria-labelledby="progress-title">
+          <section className="rounded-xl border border-stone-800 bg-stone-950 p-5" aria-labelledby="progress-title">
             <div className="flex items-end justify-between gap-4">
               <div><p className="text-sm font-bold text-lime-300">TODAY</p><h2 id="progress-title" className="mt-1 text-balance text-xl font-black">覚えた音</h2></div>
               <p className="text-2xl font-black tabular-nums">{learnedForSong}<span className="text-sm text-stone-500"> / {activeNotes.length}</span></p>
@@ -2741,7 +2702,8 @@ export function GuitarTrainer() {
             </div>
             <p className="mt-3 text-pretty text-sm text-stone-400">場所を見ずに3回続けて弾けたら「できた！」を付けよう。</p>
           </section>
-        </aside>
+          </div>
+        </details>
       </div>
     </main>
   );
