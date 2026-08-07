@@ -2420,6 +2420,37 @@ export function GuitarTrainer() {
             </div>
           </section>
 
+          <section className="rounded-2xl border border-stone-800 bg-stone-900 p-4 sm:p-5" aria-labelledby="tempo-title">
+            <p className="text-sm font-bold text-lime-300">PRACTICE SPEED</p>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <h2 id="tempo-title" className="text-balance text-xl font-black">練習テンポ</h2>
+              <p className="text-3xl font-black tabular-nums">{bpm}<span className="ml-1 text-xs text-stone-500">BPM</span></p>
+            </div>
+            <input className="mt-5 min-h-11 w-full" type="range" min="50" max={song.originalBpm} step="1" value={bpm} onChange={(event) => changeBpm(Number(event.target.value))} aria-label="練習テンポ" />
+            <div className="mt-2 flex justify-between text-xs text-stone-500 tabular-nums"><span>50</span><span>{song.originalBpm}</span></div>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {[0.5, 0.75, 1].map((ratio) => {
+                const value = Math.round(song.originalBpm * ratio);
+                return (
+                <button className="min-h-11 rounded-lg border border-stone-700 bg-stone-950 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={bpm === value} type="button" onClick={() => changeBpm(value)} key={ratio}>{Math.round(ratio * 100)}%</button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-pretty text-xs font-bold text-stone-500">
+              {videoSync ? "動画同期ON：YouTubeが実際に再生できる速度へ即時スナップします。" : "動画同期OFF：1 BPM単位でTAB音源だけ速度を変えられます。"}
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-stone-800 pt-3">
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold sm:text-sm">
+                <input className="size-4" type="checkbox" checked={countIn} onChange={(event) => setCountIn(event.target.checked)} />
+                1小節カウント
+              </label>
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold sm:text-sm">
+                <input className="size-4" type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />
+                クリック音
+              </label>
+            </div>
+          </section>
+
           <section className="rounded-2xl border border-stone-800 bg-stone-900 p-4 sm:p-6" aria-labelledby="song-map-title">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -2681,37 +2712,6 @@ export function GuitarTrainer() {
         </div>
 
         <aside className="space-y-6">
-          <section className="rounded-2xl border border-stone-800 bg-stone-900 p-5" aria-labelledby="tempo-title">
-            <p className="text-sm font-bold text-lime-300">PRACTICE SPEED</p>
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <h2 id="tempo-title" className="text-balance text-xl font-black">練習テンポ</h2>
-              <p className="text-3xl font-black tabular-nums">{bpm}<span className="ml-1 text-xs text-stone-500">BPM</span></p>
-            </div>
-            <input className="mt-5 min-h-11 w-full" type="range" min="50" max={song.originalBpm} step="1" value={bpm} onChange={(event) => changeBpm(Number(event.target.value))} aria-label="練習テンポ" />
-            <div className="mt-2 flex justify-between text-xs text-stone-500 tabular-nums"><span>50</span><span>{song.originalBpm}</span></div>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {[0.5, 0.75, 1].map((ratio) => {
-                const value = Math.round(song.originalBpm * ratio);
-                return (
-                <button className="min-h-11 rounded-lg border border-stone-700 bg-stone-950 text-sm font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={bpm === value} type="button" onClick={() => changeBpm(value)} key={ratio}>{Math.round(ratio * 100)}%</button>
-                );
-              })}
-            </div>
-            <p className="mt-3 text-pretty text-xs font-bold text-stone-500">
-              {videoSync ? "動画同期ON：YouTubeが実際に再生できる速度へ即時スナップします。" : "動画同期OFF：1 BPM単位でTAB音源だけ速度を変えられます。"}
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-stone-800 pt-3">
-              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold sm:text-sm">
-                <input className="size-4" type="checkbox" checked={countIn} onChange={(event) => setCountIn(event.target.checked)} />
-                1小節カウント
-              </label>
-              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold sm:text-sm">
-                <input className="size-4" type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />
-                クリック音
-              </label>
-            </div>
-          </section>
-
           <section className="rounded-2xl border border-stone-800 bg-stone-900 p-5" aria-labelledby="lesson-title">
             <p className="text-sm font-bold text-lime-300">TAB MINI LESSON</p>
             <h2 id="lesson-title" className="mt-2 text-balance text-xl font-black">これだけ分かれば弾ける</h2>
