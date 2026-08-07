@@ -1512,8 +1512,6 @@ export function GuitarTrainer() {
     },
   ];
   const selectedPlaybackChoice = playbackChoices.find((choice) => choice.id === playbackPreset) ?? playbackChoices[0];
-  const selectedPlaybackTotalSteps = stepsInRange(selectedPlaybackChoice.start, selectedPlaybackChoice.end, song.meterMap);
-  const selectedPlaybackProgress = clamp(playbackProgressSteps / selectedPlaybackTotalSteps, 0, 1);
   const canResumeSelected = pausedSession?.startMeasure === selectedPlaybackChoice.start
     && pausedSession.endMeasure === selectedPlaybackChoice.end;
   const cursorSession = playbackSessionRef.current ?? pausedSession;
@@ -2095,6 +2093,21 @@ export function GuitarTrainer() {
     setVideoNonce((nonce) => nonce + 1);
   }
 
+  function seekToMeasure(measure: number) {
+    const nextMeasure = Math.round(clamp(measure, 1, song.totalMeasures));
+    const nextVideoTime = videoTimeForMeasure(song, track, nextMeasure);
+    stopPlayback();
+    setPlaybackPreset("remaining");
+    setTimelineMeasure(nextMeasure);
+    setScorePageIndex(Math.floor((nextMeasure - 1) / 4));
+    const exactIndex = activeNotes.findIndex((note) => note.measure === nextMeasure);
+    if (exactIndex >= 0) moveToNoteIndex(exactIndex);
+    setVideoStart(nextVideoTime);
+    setVideoAutoplay(false);
+    sendVideoCommand("seekTo", [nextVideoTime, true]);
+    sendVideoCommand("pauseVideo");
+  }
+
   function setVideoPreset(seconds: number, measure?: number) {
     stopPlayback();
     setVideoStart(seconds);
@@ -2417,8 +2430,29 @@ export function GuitarTrainer() {
                   {playing ? "Ⅱ 一時停止" : canResumeSelected ? "▶ 再開" : "▶ 再生"}
                 </button>
               </div>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-800" role="progressbar" aria-label="選択範囲の再生位置" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(selectedPlaybackProgress * 100)}>
-                <div className="h-full rounded-full bg-lime-300 transition-[width] duration-100" style={{ width: `${selectedPlaybackProgress * 100}%` }} />
+              <div className="mt-4 rounded-xl border border-stone-800 bg-stone-900 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3 text-xs font-black">
+                  <label htmlFor="song-measure-seek">再生位置</label>
+                  <output className="tabular-nums text-lime-300" htmlFor="song-measure-seek">
+                    {activeMeasure} / {song.totalMeasures}小節 · {currentSongPart.label}
+                  </output>
+                </div>
+                <input
+                  aria-label="曲の再生位置を小節で移動"
+                  className="mt-1 min-h-10 w-full cursor-pointer"
+                  id="song-measure-seek"
+                  max={song.totalMeasures}
+                  min={1}
+                  onChange={(event) => seekToMeasure(Number(event.target.value))}
+                  step={1}
+                  type="range"
+                  value={activeMeasure}
+                />
+                <div className="flex justify-between text-[10px] font-bold text-stone-500" aria-hidden="true">
+                  <span>1小節</span>
+                  <span>動かすと一時停止・その位置から再生</span>
+                  <span>{song.totalMeasures}小節</span>
+                </div>
               </div>
 
               <div className="mt-4 grid gap-2 rounded-xl border border-stone-800 bg-stone-900 p-3 sm:grid-cols-[repeat(3,auto)_1fr] sm:items-center">

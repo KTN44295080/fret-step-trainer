@@ -48,6 +48,8 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /LEAD TAB · 全曲/);
   assert.match(html, /リードギターを1〜151小節/);
   assert.match(html, /TAB音源でまとめ再生/);
+  assert.match(html, /aria-label="曲の再生位置を小節で移動"/);
+  assert.match(html, /再生位置/);
   assert.match(html, /表示4小節/);
   assert.match(html, /この区間/);
   assert.match(html, /曲全体 1〜151/);
@@ -103,6 +105,8 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   assert.match(trainer, /function switchTrack/);
   assert.match(trainer, /type TrackId = "lead" \| "backing" \| "third"/);
   assert.match(trainer, /function toggleSelectedPlayback/);
+  assert.match(trainer, /function seekToMeasure/);
+  assert.match(trainer, /setPlaybackPreset\("remaining"\)/);
   assert.match(trainer, /aria-pressed=\{selected\}/);
   assert.match(trainer, /playing \? "Ⅱ 一時停止" : canResumeSelected \? "▶ 再開" : "▶ 再生"/);
   assert.doesNotMatch(trainer, /onClick=\{\(\) => playRange\(1, 151/);
