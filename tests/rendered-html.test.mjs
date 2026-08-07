@@ -59,7 +59,7 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /正解で曲を進める/);
   assert.match(html, /追加ギター（中央段）/);
   assert.match(html, /GUITAR 3/);
-  assert.match(html, /原動画フレーム読取/);
+  assert.doesNotMatch(html, /原動画フレーム読取|高解像度OCR転記|譜面の監査・訂正メモ/);
   assert.match(html, /原曲動画/);
   assert.match(html, /Aメロ/);
   assert.match(html, /Bメロ/);

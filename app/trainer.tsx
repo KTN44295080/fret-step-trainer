@@ -1208,7 +1208,6 @@ function ScoreMeasure({
   isPlaying: boolean;
   cursorStep: number | null;
 }) {
-  const audit = scoreAuditStatus(songId, trackId, measure);
   const proceduralGlyphs = glyphsForTrack(songId, trackId, measure);
   const proceduralLabel = trackId === "lead" ? "LEAD GUITAR" : trackId === "backing" ? "BACKING GUITAR" : "GUITAR 3";
   const score = <ProceduralTabMeasure
@@ -1221,11 +1220,6 @@ function ScoreMeasure({
 
   return (
     <div className="score-measure" data-playing={isPlaying}>
-      <div className="mb-1 flex items-center justify-end">
-        <span className="rounded-md border px-2 py-1 text-[0.65rem] font-black data-[tone=verified]:border-emerald-700 data-[tone=verified]:text-emerald-300 data-[tone=review]:border-amber-600 data-[tone=review]:text-amber-300 data-[tone=rest]:border-stone-700 data-[tone=rest]:text-stone-500" data-tone={audit.tone}>
-          {audit.label}
-        </span>
-      </div>
       {score}
     </div>
   );
@@ -2384,7 +2378,6 @@ export function GuitarTrainer() {
                 <p className="text-sm font-bold text-lime-300">{track.badge} TAB · 全曲</p>
                 <h2 id="full-score-title" className="mt-1 text-balance text-2xl font-black">{track.label}を1〜{song.totalMeasures}小節</h2>
                 <p className="mt-2 max-w-2xl text-pretty text-sm text-stone-400">{track.description}</p>
-                <p className="mt-2 max-w-2xl text-pretty text-xs font-bold text-stone-500">各小節は原動画の該当フレームから抽出しています。読取値がフレット範囲外なら「?」として再生・判定から除外し、動画確認が必要な小節を橙色で示します。訂正メモも小節単位で残せます。</p>
               </div>
               <label className="grid gap-1 text-xs font-bold text-stone-400">
                 小節へ移動
@@ -2486,27 +2479,6 @@ export function GuitarTrainer() {
                 />
               ))}
             </div>
-
-            <details className="mt-4 rounded-xl border border-amber-800/70 bg-amber-950/20 p-4 text-sm text-stone-300">
-              <summary className="min-h-6 cursor-pointer font-black text-amber-300">譜面の監査・訂正メモ</summary>
-              <p className="mt-3 text-pretty text-xs font-bold leading-5 text-stone-400">現在表示中の小節ごとに、原動画と違う弦・フレット・リズムを記録できます。メモはこの端末に自動保存されます。</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {selectedScorePage.measures.map((measure) => {
-                  const auditKey = `${songId}:${trackId}:${measure}`;
-                  return (
-                    <label className="grid gap-1 text-xs font-black" key={auditKey}>
-                      {measure}小節の訂正メモ
-                      <textarea
-                        className="min-h-24 resize-y rounded-lg border border-stone-700 bg-stone-950 px-3 py-2 font-medium text-stone-100 placeholder:text-stone-600"
-                        onChange={(event) => setAuditNotes((current) => ({ ...current, [auditKey]: event.target.value }))}
-                        placeholder="例: 2拍目の10は2弦ではなく3弦"
-                        value={auditNotes[auditKey] ?? ""}
-                      />
-                    </label>
-                  );
-                })}
-              </div>
-            </details>
 
             <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === 0} onClick={() => jumpScoreTo(activeScorePages[Math.max(0, scorePageIndex - 1)].start)} type="button">← 前の4小節</button>
