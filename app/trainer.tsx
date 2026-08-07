@@ -2552,7 +2552,13 @@ export function GuitarTrainer() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-4">
+            <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === 0} onClick={() => jumpScoreTo(activeScorePages[Math.max(0, scorePageIndex - 1)].start)} type="button">← 前の4小節</button>
+              <p className="px-2 text-center text-sm font-black tabular-nums">{selectedScorePage.start}–{selectedScorePage.end}</p>
+              <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === activeScorePages.length - 1} onClick={() => jumpScoreTo(activeScorePages[Math.min(activeScorePages.length - 1, scorePageIndex + 1)].start)} type="button">次の4小節 →</button>
+            </div>
+
+            <div className="mt-3 grid gap-4">
               {selectedScorePage.measures.map((measure) => (
                 <ScoreMeasure
                   songId={songId}
@@ -2564,12 +2570,6 @@ export function GuitarTrainer() {
                   key={measure}
                 />
               ))}
-            </div>
-
-            <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === 0} onClick={() => jumpScoreTo(activeScorePages[Math.max(0, scorePageIndex - 1)].start)} type="button">← 前の4小節</button>
-              <p className="px-2 text-center text-sm font-black tabular-nums">{selectedScorePage.start}–{selectedScorePage.end}</p>
-              <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === activeScorePages.length - 1} onClick={() => jumpScoreTo(activeScorePages[Math.min(activeScorePages.length - 1, scorePageIndex + 1)].start)} type="button">次の4小節 →</button>
             </div>
             <details className="mt-4 rounded-xl border border-stone-700 bg-stone-950 p-4 text-sm text-stone-300">
               <summary className="min-h-6 cursor-pointer font-black text-stone-100">TABの読み方</summary>
