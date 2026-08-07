@@ -1143,10 +1143,10 @@ function ProceduralTabMeasure({
   const displaySlot = (slot: number) => Math.min(measureSteps - 1, Math.round((slot / 16) * measureSteps));
 
   return (
-    <section className="overflow-hidden rounded-xl border border-lime-300/50 bg-stone-900" aria-label={`${measure}小節目、${label}`}>
-      <div className="flex items-center justify-between border-b border-stone-700 px-4 py-2">
-        <p className="text-sm font-bold tabular-nums">MEASURE {String(measure).padStart(3, "0")}</p>
-        <p className="text-xs font-bold text-lime-300">{hasNotes ? label.toUpperCase() : "REST"}</p>
+    <section className="overflow-hidden rounded-lg border border-lime-300/50 bg-stone-900" aria-label={`${measure}小節目、${label}`}>
+      <div className="flex items-center justify-between border-b border-stone-700 px-3 py-1.5">
+        <p className="text-xs font-bold tabular-nums">MEASURE {String(measure).padStart(3, "0")}</p>
+        <p className="text-[0.65rem] font-bold text-lime-300">{hasNotes ? label.toUpperCase() : "REST"}</p>
       </div>
       <div
         className={cn("tab-measure", hasNotes ? "tab-measure-technique" : "tab-measure-rest")}
@@ -1187,7 +1187,7 @@ function ProceduralTabMeasure({
           </span>
         ))) : <span className="tab-whole-rest" aria-hidden="true">━</span>}
       </div>
-      <div className="grid border-t border-stone-800 px-2 py-2 text-center text-[0.65rem] font-bold text-stone-500" style={{ gridTemplateColumns: `repeat(${beats * 2}, minmax(0, 1fr))` }} aria-hidden="true">
+      <div className="grid border-t border-stone-800 px-2 py-1 text-center text-[0.6rem] font-bold text-stone-500" style={{ gridTemplateColumns: `repeat(${beats * 2}, minmax(0, 1fr))` }} aria-hidden="true">
         {Array.from({ length: beats }, (_, index) => [String(index + 1), "＆"]).flat().map((beat, index) => <span key={`${measure}-${label}-beat-${index}`}>{beat}</span>)}
       </div>
     </section>
@@ -1196,10 +1196,10 @@ function ProceduralTabMeasure({
 
 function RestTabMeasure({ measure }: { measure: number }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-stone-800 bg-stone-950" aria-label={`${measure}小節目、リードは休み`}>
-      <div className="flex items-center justify-between border-b border-stone-800 px-4 py-2">
-        <p className="text-sm font-bold text-stone-500 tabular-nums">MEASURE {String(measure).padStart(2, "0")}</p>
-        <p className="text-xs font-bold text-stone-600">LEAD REST</p>
+    <section className="overflow-hidden rounded-lg border border-stone-800 bg-stone-950" aria-label={`${measure}小節目、リードは休み`}>
+      <div className="flex items-center justify-between border-b border-stone-800 px-3 py-1.5">
+        <p className="text-xs font-bold text-stone-500 tabular-nums">MEASURE {String(measure).padStart(2, "0")}</p>
+        <p className="text-[0.65rem] font-bold text-stone-600">LEAD REST</p>
       </div>
       <div className="tab-measure tab-measure-rest">
         {STRING_RANGE.map((stringNo) => (
@@ -1207,7 +1207,7 @@ function RestTabMeasure({ measure }: { measure: number }) {
         ))}
         <span className="tab-whole-rest" aria-hidden="true">━</span>
       </div>
-      <p className="border-t border-stone-800 px-3 py-2 text-center text-[0.65rem] font-bold text-stone-600">この小節は弾かない</p>
+      <p className="border-t border-stone-800 px-3 py-1 text-center text-[0.6rem] font-bold text-stone-600">この小節は弾かない</p>
     </section>
   );
 }
@@ -2537,7 +2537,7 @@ export function GuitarTrainer() {
               <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === activeScorePages.length - 1} onClick={() => jumpScoreTo(activeScorePages[Math.min(activeScorePages.length - 1, scorePageIndex + 1)].start)} type="button">次の4小節 →</button>
             </div>
 
-            <div className="mt-3 grid gap-4">
+            <div className="mt-3 grid gap-2">
               {selectedScorePage.measures.map((measure) => (
                 <ScoreMeasure
                   songId={songId}

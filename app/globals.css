@@ -55,7 +55,7 @@ iframe:focus-visible {
   position: relative;
   display: grid;
   grid-template-columns: repeat(16, minmax(0, 1fr));
-  grid-template-rows: repeat(6, 1.55rem);
+  grid-template-rows: repeat(6, 1.05rem);
   min-width: 0;
   border-inline: 1px solid #57534e;
   background: #1c1917;
@@ -116,7 +116,8 @@ button.tab-symbol {
 
 .tab-glyph {
   min-width: min(1.65rem, 100%);
-  min-height: 1.55rem;
+  min-height: 1.05rem;
+  line-height: 1;
   font-size: clamp(0.62rem, 1.2vw, 0.82rem);
 }
 
@@ -167,7 +168,7 @@ button.tab-symbol {
   grid-row: 3 / 5;
   place-self: center;
   color: #78716c;
-  font-size: 2rem;
+  font-size: 1.4rem;
 }
 
 .song-map {

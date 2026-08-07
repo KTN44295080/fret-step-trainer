@@ -139,6 +139,17 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
 });
 
+test("keeps the four-measure TAB stack compact", async () => {
+  const [trainer, styles] = await Promise.all([
+    readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(styles, /grid-template-rows:\s*repeat\(6, 1\.05rem\)/);
+  assert.doesNotMatch(styles, /grid-template-rows:\s*repeat\(6, 1\.55rem\)/);
+  assert.match(trainer, /<div className="mt-3 grid gap-2">/);
+});
+
 test("keeps the video-audited lead strings and the single live monitor", async () => {
   const [trainer, tabDataText] = await Promise.all([
     readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8"),
