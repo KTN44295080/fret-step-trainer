@@ -68,6 +68,42 @@ export function normalizeLifeOverLeadEighthRun(glyphs) {
   ));
 }
 
+export function extendDurationThroughNextMeasureTie({
+  baseDurationSteps = 2,
+  currentMeasureSteps,
+  eventStep,
+  stringNo,
+  fret,
+  nextMeasureSteps,
+  nextGlyphs,
+}) {
+  const matchingTie = nextGlyphs.find((glyph) => (
+    glyph.technique === "tie"
+    && glyph.symbols.some((symbol) => {
+      const numeric = symbol.text.match(/\d+/);
+      return symbol.stringNo === stringNo && numeric && Number(numeric[0]) === fret;
+    })
+  ));
+  if (!matchingTie) {
+    return { durationSteps: baseDurationSteps, sustain: false };
+  }
+
+  const tieStep = Math.round((matchingTie.slot / 16) * nextMeasureSteps);
+  const nextAttackStep = nextGlyphs
+    .filter((glyph) => glyph.technique !== "tie")
+    .map((glyph) => Math.round((glyph.slot / 16) * nextMeasureSteps))
+    .filter((step) => step > tieStep)
+    .sort((left, right) => left - right)[0] ?? nextMeasureSteps;
+
+  return {
+    durationSteps: Math.max(
+      baseDurationSteps,
+      currentMeasureSteps - eventStep + nextAttackStep,
+    ),
+    sustain: true,
+  };
+}
+
 export function videoTimeForPosition(
   videoStartSeconds,
   originalBpm,

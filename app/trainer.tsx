@@ -6,6 +6,7 @@ import {
   centsBetween,
   clamp,
   detectPitch,
+  extendDurationThroughNextMeasureTie,
   frequencyFor,
   nearestPlaybackRate,
   measurePosition,
@@ -787,6 +788,7 @@ type PlaybackEvent = {
   stringNo: StringNumber;
   fret: number;
   durationSteps: number;
+  sustain?: boolean;
   noteId?: string;
 };
 
@@ -899,7 +901,8 @@ function scoreAuditStatus(songId: SongId, trackId: TrackId, measure: number) {
 function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number): PlaybackEvent[] {
   const glyphs = glyphsForTrack(songId, trackId, measure);
   if (glyphs) {
-    return glyphs.flatMap((glyph) => {
+    const measureSteps = stepsForMeasure(measure, SONGS[songId].meterMap);
+    const baseEvents = glyphs.flatMap((glyph) => {
       if (glyph.technique === "tie") return [];
       return glyph.symbols.flatMap((symbol) => {
         const fret = parseFretSymbol(symbol.text);
@@ -907,12 +910,34 @@ function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number):
           ? []
           : [{
               measure,
-              step: Math.round((glyph.slot / 16) * stepsForMeasure(measure, SONGS[songId].meterMap)),
+              step: Math.round((glyph.slot / 16) * measureSteps),
               stringNo: symbol.stringNo,
               fret,
               durationSteps: 2,
             }];
       });
+    });
+    const nextMeasure = measure + 1;
+    const nextGlyphs = glyphsForTrack(songId, trackId, nextMeasure);
+    const nextMeasureSteps = stepsForMeasure(nextMeasure, SONGS[songId].meterMap);
+    return baseEvents.map((event) => {
+      const hasLaterMatchingAttack = baseEvents.some((candidate) => (
+        candidate.step > event.step
+        && candidate.stringNo === event.stringNo
+        && candidate.fret === event.fret
+      ));
+      if (hasLaterMatchingAttack) return event;
+
+      const extension = extendDurationThroughNextMeasureTie({
+        baseDurationSteps: event.durationSteps,
+        currentMeasureSteps: measureSteps,
+        eventStep: event.step,
+        stringNo: event.stringNo,
+        fret: event.fret,
+        nextMeasureSteps,
+        nextGlyphs,
+      });
+      return { ...event, ...extension };
     });
   }
 
@@ -1932,7 +1957,10 @@ export function GuitarTrainer() {
           event.stringNo,
           event.fret,
           startAt + (eventOffset - boundedPosition) * secondsPerStep,
-          Math.max(0.12, event.durationSteps * secondsPerStep * 0.86),
+          Math.max(
+            0.12,
+            event.durationSteps * secondsPerStep * (event.sustain ? 0.98 : 0.86),
+          ),
         );
         if (event.noteId) {
           const timerId = window.setTimeout(() => {

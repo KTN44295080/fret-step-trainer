@@ -5,6 +5,7 @@ import {
   beatsForMeasure,
   centsBetween,
   detectPitch,
+  extendDurationThroughNextMeasureTie,
   frequencyFor,
   measurePosition,
   nearestPlaybackRate,
@@ -55,6 +56,35 @@ test("life-over chorus eighth-note runs do not delay the last note", () => {
   assert.deepEqual(
     normalizeLifeOverLeadEighthRun([{ slot: 0 }, { slot: 15 }]),
     [{ slot: 0 }, { slot: 15 }],
+  );
+});
+
+test("a parenthesized chorus note sustains the previous attack across the barline", () => {
+  const nextGlyphs = [
+    { slot: 1, technique: "tie", symbols: [{ stringNo: 2, text: "(10)" }] },
+    { slot: 3, symbols: [{ stringNo: 2, text: "13" }] },
+  ];
+  assert.deepEqual(
+    extendDurationThroughNextMeasureTie({
+      currentMeasureSteps: 16,
+      eventStep: 14,
+      stringNo: 2,
+      fret: 10,
+      nextMeasureSteps: 16,
+      nextGlyphs,
+    }),
+    { durationSteps: 5, sustain: true },
+  );
+  assert.deepEqual(
+    extendDurationThroughNextMeasureTie({
+      currentMeasureSteps: 16,
+      eventStep: 14,
+      stringNo: 3,
+      fret: 10,
+      nextMeasureSteps: 16,
+      nextGlyphs,
+    }),
+    { durationSteps: 2, sustain: false },
   );
 });
 
