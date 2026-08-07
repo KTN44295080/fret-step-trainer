@@ -10,6 +10,7 @@ import {
   nearestPlaybackRate,
   measurePosition,
   playbackPositionSteps,
+  normalizeLifeOverLeadEighthRun,
   positionToMeasure,
   stepsBeforeMeasure,
   stepsForMeasure,
@@ -828,7 +829,10 @@ const MADOW_NEEDS_REVIEW = new Set<string>([
 function auditedGlyphRecord(songId: SongId, trackId: TrackId) {
   const source = AUDITED_TAB_DATA[songId]?.[trackId] ?? {};
   return Object.fromEntries(Object.entries(source).map(([measure, glyphs]) => {
-    const safeGlyphs = glyphs.map((glyph) => ({
+    const timedGlyphs = songId === "life-over" && trackId === "lead"
+      ? normalizeLifeOverLeadEighthRun(glyphs)
+      : glyphs;
+    const safeGlyphs = timedGlyphs.map((glyph) => ({
       ...glyph,
       symbols: glyph.symbols.map((symbol) => {
         const numeric = symbol.text.replace(/[^0-9]/g, "");
@@ -998,7 +1002,7 @@ function TabMeasure({
   const events = TAB_EVENTS.filter((event) => event.measure === measure);
 
   return (
-    <section className="overflow-x-auto rounded-xl border border-stone-700 bg-stone-900" aria-label={`${measure}小節目`}>
+    <section className="overflow-hidden rounded-xl border border-stone-700 bg-stone-900" aria-label={`${measure}小節目`}>
       <div className="flex items-center justify-between border-b border-stone-700 px-4 py-2">
         <p className="text-sm font-bold tabular-nums">MEASURE {String(measure).padStart(2, "0")}</p>
         <p className="text-xs text-stone-400">4 / 4</p>
@@ -1059,7 +1063,7 @@ function TechniqueTabMeasure({ measure }: { measure: number }) {
     .find((item) => item.measure === measure);
 
   return (
-    <section className="overflow-x-auto rounded-xl border border-amber-700/70 bg-stone-900" aria-label={`${measure}小節目、特殊奏法`}>
+    <section className="overflow-hidden rounded-xl border border-amber-700/70 bg-stone-900" aria-label={`${measure}小節目、特殊奏法`}>
       <div className="flex items-center justify-between border-b border-stone-700 px-4 py-2">
         <p className="text-sm font-bold tabular-nums">MEASURE {String(measure).padStart(2, "0")}</p>
         <p className="text-xs font-bold text-amber-300">{description?.focus ?? "特殊奏法"}</p>
@@ -1099,29 +1103,38 @@ function ProceduralTabMeasure({
   glyphs,
   label,
   beats,
+  cursorStep,
 }: {
   measure: number;
   glyphs: ScoreGlyph[];
   label: string;
   beats: number;
+  cursorStep: number | null;
 }) {
   const hasNotes = glyphs.length > 0;
   const measureSteps = beats * 4;
   const displaySlot = (slot: number) => Math.min(measureSteps - 1, Math.round((slot / 16) * measureSteps));
 
   return (
-    <section className="overflow-x-auto rounded-xl border border-lime-300/50 bg-stone-900" aria-label={`${measure}小節目、${label}`}>
+    <section className="overflow-hidden rounded-xl border border-lime-300/50 bg-stone-900" aria-label={`${measure}小節目、${label}`}>
       <div className="flex items-center justify-between border-b border-stone-700 px-4 py-2">
         <p className="text-sm font-bold tabular-nums">MEASURE {String(measure).padStart(3, "0")}</p>
         <p className="text-xs font-bold text-lime-300">{hasNotes ? label.toUpperCase() : "REST"}</p>
       </div>
       <div
         className={cn("tab-measure", hasNotes ? "tab-measure-technique" : "tab-measure-rest")}
-        style={{ gridTemplateColumns: `repeat(${measureSteps}, minmax(2.15rem, 1fr))`, minWidth: `${measureSteps * 2.15}rem` }}
+        style={{ gridTemplateColumns: `repeat(${measureSteps}, minmax(0, 1fr))` }}
       >
         {STRING_RANGE.map((stringNo) => (
           <div className="tab-string-line" key={`${label}-line-${measure}-${stringNo}`} style={{ gridRow: stringNo }} aria-hidden="true" />
         ))}
+        {cursorStep !== null && (
+          <span
+            className="tab-playhead"
+            style={{ left: `${clamp(cursorStep / measureSteps, 0, 1) * 100}%` }}
+            aria-hidden="true"
+          />
+        )}
         {hasNotes ? glyphs.flatMap((glyph, glyphIndex) => glyph.symbols.map((symbol, symbolIndex) => (
           <span
             className="tab-symbol tab-glyph"
@@ -1141,7 +1154,7 @@ function ProceduralTabMeasure({
 
 function RestTabMeasure({ measure }: { measure: number }) {
   return (
-    <section className="overflow-x-auto rounded-xl border border-stone-800 bg-stone-950" aria-label={`${measure}小節目、リードは休み`}>
+    <section className="overflow-hidden rounded-xl border border-stone-800 bg-stone-950" aria-label={`${measure}小節目、リードは休み`}>
       <div className="flex items-center justify-between border-b border-stone-800 px-4 py-2">
         <p className="text-sm font-bold text-stone-500 tabular-nums">MEASURE {String(measure).padStart(2, "0")}</p>
         <p className="text-xs font-bold text-stone-600">LEAD REST</p>
@@ -1162,11 +1175,13 @@ function ScoreMeasure({
   trackId,
   measure,
   isPlaying,
+  cursorStep,
 }: {
   songId: SongId;
   trackId: TrackId;
   measure: number;
   isPlaying: boolean;
+  cursorStep: number | null;
 }) {
   const audit = scoreAuditStatus(songId, trackId, measure);
   const proceduralGlyphs = glyphsForTrack(songId, trackId, measure);
@@ -1176,6 +1191,7 @@ function ScoreMeasure({
     glyphs={proceduralGlyphs}
     label={proceduralLabel}
     beats={SONGS[songId].meterMap[measure] ?? 4}
+    cursorStep={cursorStep}
   />;
 
   return (
@@ -1481,6 +1497,15 @@ export function GuitarTrainer() {
   const selectedPlaybackProgress = clamp(playbackProgressSteps / selectedPlaybackTotalSteps, 0, 1);
   const canResumeSelected = pausedSession?.startMeasure === selectedPlaybackChoice.start
     && pausedSession.endMeasure === selectedPlaybackChoice.end;
+  const cursorSession = playbackSessionRef.current ?? pausedSession;
+  const scoreCursor = cursorSession
+    ? measurePosition(
+        cursorSession.startMeasure,
+        cursorSession.endMeasure,
+        Math.max(0, playbackProgressSteps),
+        song.meterMap,
+      )
+    : { measure: activeMeasure, step: 0 };
 
   const sendVideoCommand = useCallback((command: "playVideo" | "pauseVideo" | "seekTo" | "setPlaybackRate", args: Array<number | boolean> = []) => {
     iframeRef.current?.contentWindow?.postMessage(JSON.stringify({
@@ -2118,7 +2143,7 @@ export function GuitarTrainer() {
   return (
     <main className="min-h-dvh bg-stone-950 pb-16 text-stone-50">
       <header className="border-b border-stone-800 bg-stone-950">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[160rem] px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
             <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -2200,11 +2225,11 @@ export function GuitarTrainer() {
       </header>
 
       <details className="live-console border-b border-stone-700 bg-stone-950">
-        <summary className="mx-auto flex min-h-14 max-w-7xl cursor-pointer items-center justify-between gap-4 px-4 py-3 font-black sm:px-6 lg:px-8">
+        <summary className="mx-auto flex min-h-14 max-w-[160rem] cursor-pointer items-center justify-between gap-4 px-4 py-3 font-black sm:px-6 lg:px-8">
           <span>Ampero入力・チューナー・TAB判定</span>
           <span className="text-xs text-lime-300">{inputEnabled ? "接続中" : "必要な時だけ開く"}</span>
         </summary>
-        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[160rem] px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
               <span className="rounded-md bg-lime-300 px-2 py-1 text-[0.68rem] font-black text-lime-950">LIVE MONITOR</span>
@@ -2282,28 +2307,8 @@ export function GuitarTrainer() {
         </div>
       </details>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:px-8">
+      <div className="mx-auto grid max-w-[160rem] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:px-8">
         <div className="min-w-0 space-y-6">
-          <section className="rounded-2xl border border-stone-800 bg-stone-900 p-4 sm:p-6" aria-labelledby="song-map-title">
-            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-sm font-bold text-lime-300">SONG MAP</p>
-                <h2 id="song-map-title" className="mt-1 text-balance text-2xl font-black">曲のどこを弾いているか</h2>
-              </div>
-              <p className="text-pretty text-sm text-stone-400">{trackId === "backing" ? "バッキングTAB / 黄 = ミュート・アルペジオ区間" : "緑 = 単音TAB / 黄 = 特殊奏法 / 暗色 = リード休み"}</p>
-            </div>
-            <SongMap parts={song.map} currentMeasure={activeMeasure} onJump={jumpScoreTo} />
-            <div className="mt-4 flex flex-col gap-2 rounded-xl border border-stone-700 bg-stone-950 p-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-bold text-stone-300">
-                共通位置 <span className="text-lime-300 tabular-nums">{activeMeasure}小節</span>
-                <span className="ml-2 text-stone-500">SONG MAP → TAB → 動画位置</span>
-              </p>
-              <button className="min-h-11 rounded-xl border border-lime-300 px-4 text-sm font-black text-lime-300 hover:bg-lime-300 hover:text-lime-950" onClick={() => playVideoFromMeasure(activeMeasure)} type="button">
-                ▶ 動画を{activeMeasure}小節から
-              </button>
-            </div>
-          </section>
-
           <section className="overflow-hidden rounded-2xl border border-stone-800 bg-stone-900" aria-labelledby="video-title">
             <div className="flex flex-col gap-4 border-b border-stone-800 p-4 sm:flex-row sm:items-end sm:justify-between sm:p-5">
               <div>
@@ -2331,6 +2336,26 @@ export function GuitarTrainer() {
                 src={`https://www.youtube-nocookie.com/embed/${track.videoId}?start=${videoStart}&rel=0&autoplay=${videoAutoplay ? 1 : 0}&enablejsapi=1&playsinline=1`}
                 title={`${song.title} ${track.label} TAB 動画`}
               />
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-stone-800 bg-stone-900 p-4 sm:p-6" aria-labelledby="song-map-title">
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-bold text-lime-300">SONG MAP</p>
+                <h2 id="song-map-title" className="mt-1 text-balance text-2xl font-black">曲のどこを弾いているか</h2>
+              </div>
+              <p className="text-pretty text-sm text-stone-400">{trackId === "backing" ? "バッキングTAB / 黄 = ミュート・アルペジオ区間" : "緑 = 単音TAB / 黄 = 特殊奏法 / 暗色 = リード休み"}</p>
+            </div>
+            <SongMap parts={song.map} currentMeasure={activeMeasure} onJump={jumpScoreTo} />
+            <div className="mt-4 flex flex-col gap-2 rounded-xl border border-stone-700 bg-stone-950 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-bold text-stone-300">
+                共通位置 <span className="text-lime-300 tabular-nums">{activeMeasure}小節</span>
+                <span className="ml-2 text-stone-500">SONG MAP → TAB → 動画位置</span>
+              </p>
+              <button className="min-h-11 rounded-xl border border-lime-300 px-4 text-sm font-black text-lime-300 hover:bg-lime-300 hover:text-lime-950" onClick={() => playVideoFromMeasure(activeMeasure)} type="button">
+                ▶ 動画を{activeMeasure}小節から
+              </button>
             </div>
           </section>
 
@@ -2430,9 +2455,16 @@ export function GuitarTrainer() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            <div className="mt-5 grid gap-4">
               {selectedScorePage.measures.map((measure) => (
-                <ScoreMeasure songId={songId} trackId={trackId} measure={measure} isPlaying={playbackMeasure === measure} key={measure} />
+                <ScoreMeasure
+                  songId={songId}
+                  trackId={trackId}
+                  measure={measure}
+                  isPlaying={scoreCursor.measure === measure}
+                  cursorStep={scoreCursor.measure === measure ? scoreCursor.step : null}
+                  key={measure}
+                />
               ))}
             </div>
 

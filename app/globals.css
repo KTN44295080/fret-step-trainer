@@ -54,9 +54,9 @@ iframe:focus-visible {
 .tab-measure {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(16, minmax(2.15rem, 1fr));
+  grid-template-columns: repeat(16, minmax(0, 1fr));
   grid-template-rows: repeat(6, 1.55rem);
-  min-width: 34rem;
+  min-width: 0;
   border-inline: 1px solid #57534e;
   background: #1c1917;
 }
@@ -105,9 +105,33 @@ button.tab-symbol {
 }
 
 .tab-glyph {
-  min-width: 1.65rem;
+  min-width: min(1.65rem, 100%);
   min-height: 1.55rem;
-  font-size: 0.78rem;
+  font-size: clamp(0.62rem, 1.2vw, 0.82rem);
+}
+
+.tab-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 30;
+  width: 2px;
+  translate: -1px 0;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgb(12 10 9 / 75%), 0 0 12px color-mix(in srgb, var(--accent) 80%, transparent);
+  pointer-events: none;
+}
+
+.tab-playhead::before {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 0;
+  translate: -50% 0;
+  border-inline: 0.34rem solid transparent;
+  border-top: 0.42rem solid var(--accent);
+  content: "";
 }
 
 .tab-effect {
@@ -282,13 +306,6 @@ button.tab-symbol {
 
 input[type="range"] {
   accent-color: var(--accent);
-}
-
-@media (max-width: 640px) {
-  .tab-measure {
-    min-width: 32rem;
-    grid-template-columns: repeat(16, minmax(2rem, 1fr));
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

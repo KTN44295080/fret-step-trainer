@@ -8,6 +8,7 @@ import {
   frequencyFor,
   measurePosition,
   nearestPlaybackRate,
+  normalizeLifeOverLeadEighthRun,
   playbackPositionSteps,
   positionToMeasure,
   stepsBeforeMeasure,
@@ -43,6 +44,18 @@ test("playback playhead survives tempo changes and resume", () => {
   assert.equal(playbackPositionSteps(16, 10, 12, 120), 32);
   assert.equal(positionToMeasure(20, 30, 0), 20);
   assert.equal(positionToMeasure(20, 30, 33), 22);
+});
+
+test("life-over chorus eighth-note runs do not delay the last note", () => {
+  const glyphs = [0, 2, 4, 6, 8, 10, 12, 15].map((slot) => ({ slot }));
+  assert.deepEqual(
+    normalizeLifeOverLeadEighthRun(glyphs).map((glyph) => glyph.slot),
+    [0, 2, 4, 6, 8, 10, 12, 14],
+  );
+  assert.deepEqual(
+    normalizeLifeOverLeadEighthRun([{ slot: 0 }, { slot: 15 }]),
+    [{ slot: 0 }, { slot: 15 }],
+  );
 });
 
 test("YouTube playback rate snaps to a rate the player actually supports", () => {

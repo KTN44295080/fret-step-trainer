@@ -53,6 +53,21 @@ export function measurePosition(startMeasure, endMeasure, positionSteps, meterMa
   return { measure: endMeasure, step: stepsForMeasure(endMeasure, meterMap) };
 }
 
+export function normalizeLifeOverLeadEighthRun(glyphs) {
+  if (glyphs.length !== 8) return glyphs;
+  const slots = glyphs.map((glyph) => glyph.slot);
+  const isRepeatedEighthNoteRun = slots
+    .slice(0, 7)
+    .every((slot, index) => slot === index * 2) && slots[7] === 15;
+  if (!isRepeatedEighthNoteRun) return glyphs;
+
+  // The OCR placed the last eighth note on the final sixteenth-note slot.
+  // In the source score it belongs on the eighth-note grid at slot 14.
+  return glyphs.map((glyph, index) => (
+    index === 7 ? { ...glyph, slot: 14 } : glyph
+  ));
+}
+
 export function videoTimeForPosition(
   videoStartSeconds,
   originalBpm,
