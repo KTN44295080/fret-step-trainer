@@ -1129,12 +1129,14 @@ function ProceduralTabMeasure({
   label,
   beats,
   cursorStep,
+  onSeek,
 }: {
   measure: number;
   glyphs: ScoreGlyph[];
   label: string;
   beats: number;
   cursorStep: number | null;
+  onSeek: (measure: number, step: number) => void;
 }) {
   const hasNotes = glyphs.length > 0;
   const measureSteps = beats * 4;
@@ -1148,7 +1150,22 @@ function ProceduralTabMeasure({
       </div>
       <div
         className={cn("tab-measure", hasNotes ? "tab-measure-technique" : "tab-measure-rest")}
+        data-seekable="true"
+        onClick={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect();
+          const ratio = clamp((event.clientX - bounds.left) / bounds.width, 0, 0.9999);
+          onSeek(measure, Math.floor(ratio * measureSteps));
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          onSeek(measure, 0);
+        }}
+        role="button"
         style={{ gridTemplateColumns: `repeat(${measureSteps}, minmax(0, 1fr))` }}
+        tabIndex={0}
+        title="TABをクリックしてこの位置へ移動"
+        aria-label={`${measure}小節目のTAB。クリックした拍へ移動`}
       >
         {STRING_RANGE.map((stringNo) => (
           <div className="tab-string-line" key={`${label}-line-${measure}-${stringNo}`} style={{ gridRow: stringNo }} aria-hidden="true" />
@@ -1201,12 +1218,14 @@ function ScoreMeasure({
   measure,
   isPlaying,
   cursorStep,
+  onSeek,
 }: {
   songId: SongId;
   trackId: TrackId;
   measure: number;
   isPlaying: boolean;
   cursorStep: number | null;
+  onSeek: (measure: number, step: number) => void;
 }) {
   const proceduralGlyphs = glyphsForTrack(songId, trackId, measure);
   const proceduralLabel = trackId === "lead" ? "LEAD GUITAR" : trackId === "backing" ? "BACKING GUITAR" : "GUITAR 3";
@@ -1216,6 +1235,7 @@ function ScoreMeasure({
     label={proceduralLabel}
     beats={SONGS[songId].meterMap[measure] ?? 4}
     cursorStep={cursorStep}
+    onSeek={onSeek}
   />;
 
   return (
@@ -1279,6 +1299,7 @@ export function GuitarTrainer() {
   const [noteIndex, setNoteIndex] = useState(0);
   const [scorePageIndex, setScorePageIndex] = useState(0);
   const [timelineMeasure, setTimelineMeasure] = useState(1);
+  const [timelineStep, setTimelineStep] = useState(0);
   const [videoStart, setVideoStart] = useState<number>(SONGS["life-over"].tracks.lead.videoStartSeconds);
   const [videoAutoplay, setVideoAutoplay] = useState(false);
   const [videoNonce, setVideoNonce] = useState(0);
@@ -1334,6 +1355,7 @@ export function GuitarTrainer() {
           trackId?: TrackId;
           bpm?: number;
           timelineMeasure?: number;
+          timelineStep?: number;
           learnedIds?: string[];
           countIn?: boolean;
           metronome?: boolean;
@@ -1352,6 +1374,7 @@ export function GuitarTrainer() {
           if (typeof saved.timelineMeasure === "number") {
             restoredMeasureRef.current = saved.timelineMeasure;
             setTimelineMeasure(saved.timelineMeasure);
+            setTimelineStep(typeof saved.timelineStep === "number" ? saved.timelineStep : 0);
             setScorePageIndex(Math.floor((saved.timelineMeasure - 1) / 4));
           }
           if (Array.isArray(saved.learnedIds)) setLearnedIds(new Set(saved.learnedIds));
@@ -1381,6 +1404,7 @@ export function GuitarTrainer() {
       trackId,
       bpm,
       timelineMeasure,
+      timelineStep,
       learnedIds: [...learnedIds],
       countIn,
       metronome,
@@ -1392,7 +1416,7 @@ export function GuitarTrainer() {
       loopEnabled,
       auditNotes,
     }));
-  }, [auditNotes, bpm, countIn, inputSensitivity, learnedIds, loopEnabled, loopEnd, loopStart, metronome, songId, timelineMeasure, trackId, tunerString, videoSync]);
+  }, [auditNotes, bpm, countIn, inputSensitivity, learnedIds, loopEnabled, loopEnd, loopStart, metronome, songId, timelineMeasure, timelineStep, trackId, tunerString, videoSync]);
 
   const song = SONGS[songId];
   const effectiveTrackId = song.tracks[trackId] ? trackId : song.defaultTrack;
@@ -1420,6 +1444,7 @@ export function GuitarTrainer() {
     const nextMeasure = activeNotes[boundedIndex].measure;
     setNoteIndex(boundedIndex);
     setTimelineMeasure(nextMeasure);
+    setTimelineStep(activeNotes[boundedIndex].tick * 2);
     setScorePageIndex(Math.floor((nextMeasure - 1) / 4));
   }, [activeNotes]);
 
@@ -1522,7 +1547,7 @@ export function GuitarTrainer() {
         Math.max(0, playbackProgressSteps),
         song.meterMap,
       )
-    : { measure: activeMeasure, step: 0 };
+    : { measure: activeMeasure, step: timelineStep };
 
   const sendVideoCommand = useCallback((command: "playVideo" | "pauseVideo" | "seekTo" | "setPlaybackRate", args: Array<number | boolean> = []) => {
     iframeRef.current?.contentWindow?.postMessage(JSON.stringify({
@@ -1967,6 +1992,7 @@ export function GuitarTrainer() {
         const measureTimer = window.setTimeout(() => {
           setPlaybackMeasure(measure);
           setTimelineMeasure(measure);
+          setTimelineStep(0);
           setScorePageIndex(Math.floor((measure - 1) / 4));
           if (videoSync) {
             sendVideoCommand("seekTo", [videoTimeForPosition(track.videoStartSeconds, song.originalBpm, measure, 0, song.meterMap), true]);
@@ -1983,6 +2009,7 @@ export function GuitarTrainer() {
     setPlaybackLabel(label);
     setPlaybackMeasure(currentMeasure);
     setTimelineMeasure(currentMeasure);
+    setTimelineStep(measurePosition(startMeasure, endMeasure, Math.max(0, boundedPosition), song.meterMap).step);
     setScorePageIndex(Math.floor((currentMeasure - 1) / 4));
     const endTimer = window.setTimeout(
       () => {
@@ -2034,11 +2061,18 @@ export function GuitarTrainer() {
       );
       return;
     }
-    playRange(
-      selectedPlaybackChoice.start,
-      selectedPlaybackChoice.end,
-      selectedPlaybackChoice.label,
-    );
+    if (selectedPlaybackChoice.id === "remaining" && timelineStep > 0) {
+      stopPlayback();
+      scheduleRange(
+        selectedPlaybackChoice.start,
+        selectedPlaybackChoice.end,
+        selectedPlaybackChoice.label,
+        bpm,
+        timelineStep,
+      );
+      return;
+    }
+    playRange(selectedPlaybackChoice.start, selectedPlaybackChoice.end, selectedPlaybackChoice.label);
   }
 
   function changeBpm(nextBpm: number) {
@@ -2085,6 +2119,7 @@ export function GuitarTrainer() {
   function jumpScoreTo(measure: number) {
     stopPlayback();
     setTimelineMeasure(measure);
+    setTimelineStep(0);
     setScorePageIndex(Math.floor((measure - 1) / 4));
     const exactIndex = activeNotes.findIndex((note) => note.measure === measure);
     if (exactIndex >= 0) moveToNoteIndex(exactIndex);
@@ -2095,13 +2130,30 @@ export function GuitarTrainer() {
 
   function seekToMeasure(measure: number) {
     const nextMeasure = Math.round(clamp(measure, 1, song.totalMeasures));
-    const nextVideoTime = videoTimeForMeasure(song, track, nextMeasure);
+    seekToScorePosition(nextMeasure, 0);
+  }
+
+  function seekToScorePosition(measure: number, step: number) {
+    const nextMeasure = Math.round(clamp(measure, 1, song.totalMeasures));
+    const measureSteps = stepsForMeasure(nextMeasure, song.meterMap);
+    const nextStep = Math.floor(clamp(step, 0, measureSteps - 1));
+    const nextVideoTime = videoTimeForPosition(
+      track.videoStartSeconds,
+      song.originalBpm,
+      nextMeasure,
+      nextStep,
+      song.meterMap,
+    );
     stopPlayback();
     setPlaybackPreset("remaining");
     setTimelineMeasure(nextMeasure);
+    setTimelineStep(nextStep);
     setScorePageIndex(Math.floor((nextMeasure - 1) / 4));
-    const exactIndex = activeNotes.findIndex((note) => note.measure === nextMeasure);
-    if (exactIndex >= 0) moveToNoteIndex(exactIndex);
+    const nearestNote = activeNotes
+      .map((note, index) => ({ index, note }))
+      .filter(({ note }) => note.measure === nextMeasure)
+      .sort((left, right) => Math.abs(left.note.tick * 2 - nextStep) - Math.abs(right.note.tick * 2 - nextStep))[0];
+    if (nearestNote) setNoteIndex(nearestNote.index);
     setVideoStart(nextVideoTime);
     setVideoAutoplay(false);
     sendVideoCommand("seekTo", [nextVideoTime, true]);
@@ -2115,6 +2167,7 @@ export function GuitarTrainer() {
     setVideoNonce((nonce) => nonce + 1);
     if (measure !== undefined) {
       setTimelineMeasure(measure);
+      setTimelineStep(0);
       setScorePageIndex(Math.floor((measure - 1) / 4));
     }
   }
@@ -2122,6 +2175,7 @@ export function GuitarTrainer() {
   function playVideoFromMeasure(measure: number) {
     stopPlayback();
     setTimelineMeasure(measure);
+    setTimelineStep(0);
     setScorePageIndex(Math.floor((measure - 1) / 4));
     const exactIndex = activeNotes.findIndex((note) => note.measure === measure);
     if (exactIndex >= 0) moveToNoteIndex(exactIndex);
@@ -2150,6 +2204,7 @@ export function GuitarTrainer() {
     setNoteIndex(0);
     setScorePageIndex(0);
     setTimelineMeasure(1);
+    setTimelineStep(0);
     setPlaybackPreset("page");
     setLoopStart(1);
     setLoopEnd(Math.min(4, nextSong.totalMeasures));
@@ -2168,6 +2223,7 @@ export function GuitarTrainer() {
     stopPlayback();
     setTrackId(nextTrackId);
     setNoteIndex(0);
+    setTimelineStep(0);
     setPitchMatched(false);
     setDetectedCents(null);
     setVideoStart(videoTimeForMeasure(song, nextTrack, timelineMeasure));
@@ -2225,7 +2281,6 @@ export function GuitarTrainer() {
                     <span>{candidate.title}</span>
                     {active && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
                   </span>
-                  <small className={cn("mt-1 block font-bold", active ? "text-lime-900" : "text-stone-500")}>{Object.keys(candidate.tracks).length}パート切替 · {candidate.totalMeasures}小節</small>
                 </button>
               );
             })}
@@ -2251,7 +2306,6 @@ export function GuitarTrainer() {
                     <span>{candidateTrack.label}</span>
                     {active && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
                   </span>
-                  <small className={cn("mt-1 block font-bold", active ? "text-lime-900" : "text-stone-500")}>{candidateTrack.badge} TAB · 動画・音源・判定を同時切替</small>
                 </button>
               );
             })}
@@ -2509,6 +2563,7 @@ export function GuitarTrainer() {
                   measure={measure}
                   isPlaying={scoreCursor.measure === measure}
                   cursorStep={scoreCursor.measure === measure ? scoreCursor.step : null}
+                  onSeek={seekToScorePosition}
                   key={measure}
                 />
               ))}

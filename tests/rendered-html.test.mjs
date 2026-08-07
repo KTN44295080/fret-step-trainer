@@ -34,11 +34,11 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /人生オーバー/);
   assert.match(html, />LEAD</);
   assert.match(html, /惑う星/);
-  assert.match(html, /3パート切替/);
+  assert.doesNotMatch(html, /3パート切替/);
+  assert.doesNotMatch(html, /2パート切替/);
   assert.match(html, /ギターパートを選択/);
   assert.match(html, /バッキングギター/);
-  assert.match(html, /動画・音源・判定を同時切替/);
-  assert.match(html, /207小節/);
+  assert.doesNotMatch(html, /動画・音源・判定を同時切替/);
   assert.match(html, /練習曲を選択/);
   assert.match(html, /Ampero入力・チューナー・TAB判定/);
   assert.match(html, /TAB判定/);
@@ -49,6 +49,7 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /リードギターを1〜151小節/);
   assert.match(html, /TAB音源でまとめ再生/);
   assert.match(html, /aria-label="曲の再生位置を小節で移動"/);
+  assert.match(html, /クリックした拍へ移動/);
   assert.match(html, /再生位置/);
   assert.match(html, /表示4小節/);
   assert.match(html, /この区間/);
@@ -60,7 +61,6 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /譜面を見ながら判定/);
   assert.match(html, /正解で曲を進める/);
   assert.match(html, /追加ギター（中央段）/);
-  assert.match(html, /GUITAR 3/);
   assert.doesNotMatch(html, /原動画フレーム読取|高解像度OCR転記|譜面の監査・訂正メモ/);
   assert.match(html, /原曲動画/);
   assert.match(html, /Aメロ/);
@@ -106,6 +106,8 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   assert.match(trainer, /type TrackId = "lead" \| "backing" \| "third"/);
   assert.match(trainer, /function toggleSelectedPlayback/);
   assert.match(trainer, /function seekToMeasure/);
+  assert.match(trainer, /function seekToScorePosition/);
+  assert.match(trainer, /onSeek=\{seekToScorePosition\}/);
   assert.match(trainer, /setPlaybackPreset\("remaining"\)/);
   assert.match(trainer, /aria-pressed=\{selected\}/);
   assert.match(trainer, /playing \? "Ⅱ 一時停止" : canResumeSelected \? "▶ 再開" : "▶ 再生"/);
