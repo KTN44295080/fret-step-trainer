@@ -49,11 +49,14 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /リードギターを1〜151小節/);
   assert.match(html, /TAB音源でまとめ再生/);
   assert.match(html, /aria-label="曲の再生位置を小節で移動"/);
+  assert.match(html, /1小節カウント/);
+  assert.match(html, /クリック音/);
+  assert.doesNotMatch(html, /1小節カウントしてから開始|再生中もクリック音を鳴らす/);
   assert.match(html, /クリックした拍へ移動/);
   assert.match(html, /再生位置/);
   assert.match(html, /表示4小節/);
   assert.match(html, /この区間/);
-  assert.match(html, /曲全体 1〜151/);
+  assert.doesNotMatch(html, /曲全体 1〜151/);
   assert.match(html, /再生範囲を選択/);
   assert.match(html, /選択中 · 表示4小節 1〜4/);
   assert.match(html, /aria-pressed="true"/);
@@ -110,7 +113,8 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   assert.match(trainer, /onSeek=\{seekToScorePosition\}/);
   assert.match(trainer, /setPlaybackPreset\("remaining"\)/);
   assert.match(trainer, /aria-pressed=\{selected\}/);
-  assert.match(trainer, /playing \? "Ⅱ 一時停止" : canResumeSelected \? "▶ 再開" : "▶ 再生"/);
+  assert.match(trainer, /selected \? toggleSelectedPlayback\(\) : selectPlaybackPreset\(choice\.id\)/);
+  assert.match(trainer, /selectedAndPlaying \? "停止" : canResumeSelected \? "再開" : "再生"/);
   assert.doesNotMatch(trainer, /onClick=\{\(\) => playRange\(1, 151/);
   assert.doesNotMatch(trainer, /live-console sticky|sticky top-0 z-50/);
   assert.match(trainer, /scorePlaybackEvents/);

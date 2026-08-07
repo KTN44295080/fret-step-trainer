@@ -801,7 +801,7 @@ type PlaybackSession = {
   scheduledAt: number;
 };
 
-type PlaybackPreset = "page" | "section" | "full" | "remaining" | "loop";
+type PlaybackPreset = "page" | "section" | "remaining" | "loop";
 
 function parseFretSymbol(text: string) {
   if (text.includes("×") || text.startsWith("(")) return null;
@@ -1512,14 +1512,6 @@ export function GuitarTrainer() {
       label: `${currentSongPart.label} ${currentSongPart.range}`,
     },
     {
-      id: "full",
-      title: `曲全体 1〜${song.totalMeasures}`,
-      detail: `休みも含む · ${rangeDuration(1, song.totalMeasures, bpm, song.meterMap)}`,
-      start: 1,
-      end: song.totalMeasures,
-      label: `曲全体 1〜${song.totalMeasures}小節`,
-    },
-    {
       id: "remaining",
       title: "現在地から最後まで",
       detail: `${remainingStartMeasure}〜${song.totalMeasures} · ${rangeDuration(remainingStartMeasure, song.totalMeasures, bpm, song.meterMap)}`,
@@ -2040,7 +2032,7 @@ export function GuitarTrainer() {
   }
 
   function selectPlaybackPreset(nextPreset: PlaybackPreset) {
-    if (playing) stopPlayback();
+    if (playing || pausedSession) stopPlayback();
     setPlaybackPreset(nextPreset);
   }
 
@@ -2459,30 +2451,17 @@ export function GuitarTrainer() {
             </div>
 
             <div className="mt-5 rounded-2xl border border-lime-300/60 bg-stone-950 p-4 sm:p-5">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
                 <div>
                   <p className="text-xs font-black text-lime-300">TAB音源でまとめ再生</p>
                   <p className="mt-1 text-sm font-bold text-stone-200" aria-live="polite">
                     {playing
                       ? `再生中 · ${playbackLabel} · ${playbackMeasure ?? activeMeasure}小節`
                       : canResumeSelected
-                        ? `一時停止中 · ${pausedSession?.label} · ${playbackMeasure ?? activeMeasure}小節`
+                        ? `停止中 · ${pausedSession?.label} · ${playbackMeasure ?? activeMeasure}小節`
                         : `選択中 · ${selectedPlaybackChoice.label}`}
                   </p>
                 </div>
-                <button
-                  aria-label={playing ? "TAB音源を一時停止" : canResumeSelected ? "TAB音源を途中から再開" : `${selectedPlaybackChoice.label}を再生`}
-                  className={cn(
-                    "min-h-12 min-w-32 rounded-xl border px-5 text-sm font-black transition-colors",
-                    playing
-                      ? "border-red-400 bg-red-400/10 text-red-300 hover:bg-red-400 hover:text-stone-950"
-                      : "border-lime-300 bg-lime-300 text-lime-950 hover:bg-lime-200",
-                  )}
-                  onClick={toggleSelectedPlayback}
-                  type="button"
-                >
-                  {playing ? "Ⅱ 一時停止" : canResumeSelected ? "▶ 再開" : "▶ 再生"}
-                </button>
               </div>
               <div className="mt-4 rounded-xl border border-stone-800 bg-stone-900 px-3 py-2.5">
                 <div className="flex items-center justify-between gap-3 text-xs font-black">
@@ -2504,7 +2483,7 @@ export function GuitarTrainer() {
                 />
                 <div className="flex justify-between text-[10px] font-bold text-stone-500" aria-hidden="true">
                   <span>1小節</span>
-                  <span>動かすと一時停止・その位置から再生</span>
+                  <span>動かすと停止・その位置から再生</span>
                   <span>{song.totalMeasures}小節</span>
                 </div>
               </div>
@@ -2524,33 +2503,51 @@ export function GuitarTrainer() {
               </div>
 
               <p className="mt-4 text-xs font-black text-stone-500">再生範囲を選択</p>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 {playbackChoices.map((choice) => {
                   const selected = choice.id === playbackPreset;
+                  const selectedAndPlaying = selected && playing;
                   return (
                     <button
+                      aria-label={selected
+                        ? selectedAndPlaying
+                          ? `${choice.label}を停止`
+                          : canResumeSelected
+                            ? `${choice.label}を途中から再開`
+                            : `${choice.label}を再生`
+                        : `${choice.label}を選択`}
                       aria-pressed={selected}
                       className={cn(
                         "relative min-h-16 rounded-xl border px-4 py-3 text-left text-sm font-black transition-colors",
-                        selected
+                        selectedAndPlaying
+                          ? "border-red-400 bg-red-400/10 text-red-200 shadow-[0_0_0_1px_rgba(248,113,113,0.25)]"
+                          : selected
                           ? "border-lime-300 bg-lime-300 text-lime-950 shadow-[0_0_0_1px_rgba(190,242,100,0.35)]"
                           : "border-stone-700 bg-stone-900 text-stone-200 hover:border-lime-300 hover:bg-stone-800",
                       )}
+                      data-playing={selectedAndPlaying}
                       key={choice.id}
-                      onClick={() => selectPlaybackPreset(choice.id)}
+                      onClick={() => selected ? toggleSelectedPlayback() : selectPlaybackPreset(choice.id)}
                       type="button"
                     >
                       <span className="flex items-center justify-between gap-3">
                         <span>{choice.title}</span>
-                        {selected && <span className="rounded-full bg-lime-950 px-2 py-0.5 text-[10px] text-lime-200">選択中</span>}
+                        {selected && (
+                          <span className={cn(
+                            "rounded-full px-2 py-0.5 text-[10px]",
+                            selectedAndPlaying ? "bg-red-400 text-stone-950" : "bg-lime-950 text-lime-200",
+                          )}>
+                            {selectedAndPlaying ? "停止" : canResumeSelected ? "再開" : "再生"}
+                          </span>
+                        )}
                       </span>
-                      <small className={cn("mt-1 block font-bold", selected ? "text-lime-900" : "text-stone-500")}>{choice.detail}</small>
+                      <small className={cn("mt-1 block font-bold", selectedAndPlaying ? "text-red-300" : selected ? "text-lime-900" : "text-stone-500")}>{choice.detail}</small>
                     </button>
                   );
                 })}
               </div>
               <div className="mt-3 flex flex-col gap-2 border-t border-stone-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-pretty text-xs font-bold text-stone-500">一時停止後は同じ位置から再開。範囲変更や小節移動をすると停止位置を破棄します。</p>
+                <p className="text-pretty text-xs font-bold text-stone-500">停止後は同じ位置から再開。範囲変更や小節移動をすると停止位置を破棄します。</p>
                 <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-black"><input className="size-4" checked={videoSync} onChange={(event) => setVideoSync(event.target.checked)} type="checkbox" />動画もBPM・位置に同期</label>
               </div>
             </div>
@@ -2703,14 +2700,16 @@ export function GuitarTrainer() {
             <p className="mt-3 text-pretty text-xs font-bold text-stone-500">
               {videoSync ? "動画同期ON：YouTubeが実際に再生できる速度へ即時スナップします。" : "動画同期OFF：1 BPM単位でTAB音源だけ速度を変えられます。"}
             </p>
-            <label className="mt-5 flex min-h-11 cursor-pointer items-center gap-3 border-t border-stone-800 pt-4 text-sm font-bold">
-              <input className="size-5" type="checkbox" checked={countIn} onChange={(event) => setCountIn(event.target.checked)} />
-              1小節カウントしてから開始
-            </label>
-            <label className="mt-2 flex min-h-11 cursor-pointer items-center gap-3 text-sm font-bold">
-              <input className="size-5" type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />
-              再生中もクリック音を鳴らす
-            </label>
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-stone-800 pt-3">
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold sm:text-sm">
+                <input className="size-4" type="checkbox" checked={countIn} onChange={(event) => setCountIn(event.target.checked)} />
+                1小節カウント
+              </label>
+              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold sm:text-sm">
+                <input className="size-4" type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />
+                クリック音
+              </label>
+            </div>
           </section>
 
           <section className="rounded-2xl border border-stone-800 bg-stone-900 p-5" aria-labelledby="lesson-title">
