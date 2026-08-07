@@ -2376,15 +2376,6 @@ export function GuitarTrainer() {
               <p className="text-pretty text-sm text-stone-400">{trackId === "backing" ? "バッキングTAB / 黄 = ミュート・アルペジオ区間" : "緑 = 単音TAB / 黄 = 特殊奏法 / 暗色 = リード休み"}</p>
             </div>
             <SongMap parts={song.map} currentMeasure={activeMeasure} onJump={jumpScoreTo} />
-            <div className="mt-4 flex flex-col gap-2 rounded-xl border border-stone-700 bg-stone-950 p-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-bold text-stone-300">
-                共通位置 <span className="text-lime-300 tabular-nums">{activeMeasure}小節</span>
-                <span className="ml-2 text-stone-500">SONG MAP → TAB → 動画位置</span>
-              </p>
-              <button className="min-h-11 rounded-xl border border-lime-300 px-4 text-sm font-black text-lime-300 hover:bg-lime-300 hover:text-lime-950" onClick={() => playVideoFromMeasure(activeMeasure)} type="button">
-                ▶ 動画を{activeMeasure}小節から
-              </button>
-            </div>
           </section>
 
           <section className="rounded-2xl border border-stone-700 bg-stone-900 p-4 shadow-xl sm:p-6" aria-labelledby="full-score-title">
