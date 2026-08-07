@@ -16,13 +16,51 @@ export function originalSecondsPerStep(originalBpm) {
   return 15 / originalBpm;
 }
 
+export function beatsForMeasure(measure, meterMap = {}) {
+  return meterMap[measure] ?? 4;
+}
+
+export function stepsForMeasure(measure, meterMap = {}) {
+  return beatsForMeasure(measure, meterMap) * 4;
+}
+
+export function stepsBeforeMeasure(measure, meterMap = {}) {
+  let steps = 0;
+  for (let current = 1; current < Math.max(1, measure); current += 1) {
+    steps += stepsForMeasure(current, meterMap);
+  }
+  return steps;
+}
+
+export function stepsInRange(startMeasure, endMeasure, meterMap = {}) {
+  let steps = 0;
+  for (let measure = startMeasure; measure <= endMeasure; measure += 1) {
+    steps += stepsForMeasure(measure, meterMap);
+  }
+  return steps;
+}
+
+export function measurePosition(startMeasure, endMeasure, positionSteps, meterMap = {}) {
+  const bounded = Math.max(0, positionSteps);
+  let elapsed = 0;
+  for (let measure = startMeasure; measure <= endMeasure; measure += 1) {
+    const measureSteps = stepsForMeasure(measure, meterMap);
+    if (bounded < elapsed + measureSteps || measure === endMeasure) {
+      return { measure, step: Math.min(measureSteps, Math.max(0, bounded - elapsed)) };
+    }
+    elapsed += measureSteps;
+  }
+  return { measure: endMeasure, step: stepsForMeasure(endMeasure, meterMap) };
+}
+
 export function videoTimeForPosition(
   videoStartSeconds,
   originalBpm,
   measure,
   step = 0,
+  meterMap = {},
 ) {
-  const absoluteStep = Math.max(0, (measure - 1) * 16 + step);
+  const absoluteStep = Math.max(0, stepsBeforeMeasure(measure, meterMap) + step);
   return videoStartSeconds + absoluteStep * originalSecondsPerStep(originalBpm);
 }
 
@@ -39,11 +77,9 @@ export function positionToMeasure(
   startMeasure,
   endMeasure,
   positionSteps,
+  meterMap = {},
 ) {
-  return Math.min(
-    endMeasure,
-    Math.max(startMeasure, startMeasure + Math.floor(Math.max(0, positionSteps) / 16)),
-  );
+  return measurePosition(startMeasure, endMeasure, positionSteps, meterMap).measure;
 }
 
 export function nearestPlaybackRate(requestedRate, availableRates) {

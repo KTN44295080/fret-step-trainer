@@ -19,10 +19,10 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OCR_TOOLS = ROOT / "audit" / "ocr-tools"
+OCR_TOOLS = ROOT / "audit" / "ocr-tools-v2"
+if not OCR_TOOLS.exists():
+    OCR_TOOLS = ROOT / "audit" / "ocr-tools"
 sys.path.insert(0, str(OCR_TOOLS))
-
-from rapidocr_onnxruntime import RapidOCR  # type: ignore  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -39,8 +39,10 @@ SOURCES = (
     Source("life-over.lead", "life-over-lead", 151, (505, 521, 537, 553, 569, 585), (90, 650), 470),
     Source("life-over.backing", "life-over-backing", 151, (147, 163, 179, 195, 211, 227), (90, 650), 115),
     Source("life-over.third", "life-over-lead", 151, (304, 320, 336, 352, 368, 384), (90, 650), 270),
-    Source("madow.lead", "madow-lead", 207, (606, 620, 634, 648, 662, 676), (390, 715), 555),
-    Source("madow.backing", "madow-backing", 207, (579, 593, 607, 621, 635, 649), (390, 715), 535),
+    # Madow is audited from the native 1920x1080 captures.  These coordinates
+    # are the six TAB lines in that resolution, measured from the source frame.
+    Source("madow.lead", "madow-lead", 207, (902, 922, 942, 962, 982, 1002), (585, 1070), 835),
+    Source("madow.backing", "madow-backing", 207, (872, 892, 912, 932, 952, 972), (585, 1070), 805),
 )
 
 
@@ -327,31 +329,53 @@ def full_measure_tokens(
             issues.append({"reason": "ambiguous-multiline-box", "text": text, "x": round(center_x, 1)})
             continue
         if vertical:
-            if len(matches) == 1 and matches[0].isdigit() and len(matches[0]) >= 3:
-                expected = max(2, min(6, round((box_height - 10) / line_gap) + 1))
-                compact = matches[0]
-                if len(compact) == expected:
-                    matches = list(compact)
-                else:
-                    parsed: list[str] = []
+            # OCR commonly returns a vertical chord as one compact token, e.g.
+            # 8/7/7/5 -> "8775" or 3/2/0/X/2 -> "320X2".  The detected box
+            # height already tells us how many TAB strings it spans.
+            expected = max(2, min(6, round(box_height / line_gap)))
+            expanded: list[str] = []
 
-                    def split_at(index: int, remaining: int) -> bool:
-                        if remaining == 0:
-                            return index == len(compact)
-                        for width in (2, 1):
-                            value = compact[index:index + width]
-                            if not value or (len(value) > 1 and value.startswith("0")):
-                                continue
-                            if int(value) > 24:
-                                continue
-                            parsed.append(value)
-                            if split_at(index + width, remaining - 1):
-                                return True
-                            parsed.pop()
+            def expand_at(match_index: int, remaining: int) -> bool:
+                if match_index == len(matches):
+                    return remaining == 0
+                match = matches[match_index]
+                if not match.isdigit():
+                    if remaining < 1:
                         return False
+                    expanded.append(match)
+                    if expand_at(match_index + 1, remaining - 1):
+                        return True
+                    expanded.pop()
+                    return False
 
-                    if split_at(0, expected):
-                        matches = parsed
+                def split_digits(index: int, slots: int) -> bool:
+                    if index == len(match):
+                        return expand_at(match_index + 1, remaining - slots)
+                    if slots >= remaining:
+                        return False
+                    for width in (2, 1):
+                        value = match[index:index + width]
+                        if not value or (len(value) > 1 and value.startswith("0")):
+                            continue
+                        if int(value) > 24:
+                            continue
+                        expanded.append(value)
+                        if split_digits(index + width, slots + 1):
+                            return True
+                        expanded.pop()
+                    return False
+
+                return split_digits(0, 0)
+
+            if expand_at(0, expected):
+                matches = expanded
+            else:
+                issues.append({
+                    "reason": "vertical-token-count-mismatch",
+                    "text": text,
+                    "expected": expected,
+                    "x": round(center_x, 1),
+                })
             first_center = box_top + min(line_gap * 0.55, (box_bottom - box_top) / max(2, len(matches)))
             first_string = int(np.argmin([abs(first_center - line_y) for line_y in source.staff_lines]))
             for offset, match in enumerate(matches):
@@ -368,19 +392,24 @@ def full_measure_tokens(
         string_index = int(np.argmin([abs(center_y - line_y) for line_y in source.staff_lines]))
         if abs(center_y - source.staff_lines[string_index]) > line_gap:
             continue
-        if len(matches) == 1 and matches[0].isdigit() and len(matches[0]) >= 3:
-            compact = matches[0]
-            split_matches: list[str] = []
+        split_matches: list[str] = []
+        for match in matches:
+            if not match.isdigit() or int(match) <= 24:
+                split_matches.append(match)
+                continue
+            # Horizontal OCR may join repeated notes into one token, e.g.
+            # "44", "55555" or "1414".  Prefer valid two-digit frets that
+            # start with 1/2; otherwise each printed digit is a separate note.
             index = 0
-            while index < len(compact):
-                pair = compact[index:index + 2]
+            while index < len(match):
+                pair = match[index:index + 2]
                 if len(pair) == 2 and pair[0] in "12" and 10 <= int(pair) <= 24:
                     split_matches.append(pair)
                     index += 2
                 else:
-                    split_matches.append(compact[index])
+                    split_matches.append(match[index])
                     index += 1
-            matches = split_matches
+        matches = split_matches
         span = max(1.0, box_right - box_left)
         for match_index, match in enumerate(matches):
             token_x = box_left + span * ((match_index + 0.5) / len(matches))
@@ -494,10 +523,14 @@ def attach_detected_techniques(
 
 
 def transcribe_source(source: Source, ocr: RapidOCR) -> tuple[dict[str, object], dict[str, object]]:
-    source_dir = ROOT / "audit" / "measure-frames" / source.directory
+    frame_set = "measure-frames-highres" if source.key.startswith("madow.") else "measure-frames"
+    source_dir = ROOT / "audit" / frame_set / source.directory
     measures: dict[str, object] = {}
     report: dict[str, object] = {"measures": source.measures, "issues": [], "empty": [], "lowConfidence": []}
     confidence_values: list[float] = []
+    # Native 1920x1080 captures retain the spatial relationship between chord
+    # stacks and sequential notes.  Keep the per-string recognizer below as a
+    # secondary cross-check, but use full-measure OCR for the audited result.
     if source.key.startswith("madow."):
         for measure in range(1, source.measures + 1):
             frame = source_dir / f"measure-{measure:03d}.jpg"
@@ -640,12 +673,8 @@ def set_nested(target: dict[str, object], key: str, value: object) -> None:
 
 def apply_manual_corrections(data: dict[str, object]) -> None:
     """Apply notes confirmed from the source video after OCR transcription."""
-    life = data["life-over"]  # type: ignore[index]
-    lead = life["lead"]  # type: ignore[index]
-    backing = life["backing"]  # type: ignore[index]
-
     def glyph(
-        slot: int,
+        slot: float,
         *symbols: tuple[int, str],
         technique: str | None = None,
     ) -> dict[str, object]:
@@ -659,6 +688,146 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
         if technique is not None:
             corrected["technique"] = technique
         return corrected
+
+    # Madow Star uses a separate pair of source videos.  Normalize the one
+    # recurring OCR substitute for a muted note, and reject joined numbers
+    # such as 60/0000 before applying the native-frame corrections below.
+    madow = data.get("madow")
+    if isinstance(madow, dict):
+        for track_name in ("lead", "backing"):
+            track = madow.get(track_name)
+            if not isinstance(track, dict):
+                continue
+            for measure_text, measure_glyphs in track.items():
+                cleaned: list[dict[str, object]] = []
+                for current in measure_glyphs:
+                    symbols = []
+                    for symbol in current["symbols"]:
+                        text = "×" if symbol["text"] in ("亊", "X", "x") else symbol["text"]
+                        digits = "".join(character for character in text if character.isdigit())
+                        if digits and int(digits) > 24:
+                            continue
+                        symbols.append({"stringNo": symbol["stringNo"], "text": text})
+                    if symbols:
+                        cleaned.append({**current, "symbols": symbols})
+                track[measure_text] = cleaned
+
+        madow_lead = madow.get("lead")
+        madow_backing = madow.get("backing")
+        if isinstance(madow_lead, dict):
+            # Clearly legible repeating figures, checked in the native
+            # 1920x1080 lead video one measure at a time.
+            madow_lead["7"] = [
+                glyph(slot, (2, "7"), (3, "×"), (4, "4"))
+                for slot in range(8)
+            ] + [
+                glyph(slot, (2, "8"), (3, "×"), (4, "5"))
+                for slot in range(8, 16)
+            ]
+            madow_lead["57"] = [
+                glyph(slot, (2, "12"), (3, "×"), (4, "9"))
+                for slot in range(0, 16, 2)
+            ]
+            madow_lead["73"] = [
+                glyph(slot, (3, "7"), (4, "×"), (5, "5"))
+                for slot in range(0, 16, 2)
+            ]
+            madow_lead["93"] = [
+                glyph(0, (2, "(10)"), (3, "×"), (4, "(10)"), technique="tie"),
+                *[
+                    glyph(slot, (2, "10"), (3, "×"), (4, "10"))
+                    for slot in (2, 4, 8, 12)
+                ],
+            ]
+            madow_lead["149"] = [
+                glyph(slot, (3, "5"), (4, "×"), (5, "3"))
+                for slot in range(16)
+            ]
+            madow_lead["184"] = [
+                *[
+                    glyph(slot, (3, "9"), (4, "×"), (5, "7"))
+                    for slot in (0, 2, 4, 6)
+                ],
+                *[
+                    glyph(slot, (4, "10"), (5, "×"), (6, "8"))
+                    for slot in (8, 10, 12)
+                ],
+                glyph(14, (4, "12"), (5, "×"), (6, "10")),
+            ]
+            madow_lead["200"] = [
+                glyph(0, (1, "(15)"), (2, "(18)"), technique="tie")
+            ]
+            madow_lead["201"] = [
+                glyph(0, (1, "(15)"), (2, "(18)"), technique="tie")
+            ]
+            madow_lead["202"] = [
+                glyph(0, (1, "(15)"), (2, "(18)"), technique="tie")
+            ]
+            madow_lead["204"] = [
+                glyph(
+                    0,
+                    (1, "(0)"), (2, "(0)"), (3, "(0)"),
+                    (4, "(0)"), (5, "(2)"), (6, "(0)"),
+                    technique="tie",
+                )
+            ]
+        if isinstance(madow_backing, dict):
+            madow_backing["78"] = [
+                glyph(0, (2, "(8)"), (3, "(7)"), (4, "(10)"), technique="tie")
+            ]
+            madow_backing["79"] = [
+                glyph(4, (2, "10"), (3, "9"), (4, "12")),
+                glyph(12, (2, "12"), (3, "12"), (4, "12")),
+            ]
+            madow_backing["138"] = [
+                glyph(
+                    0,
+                    (1, "(0)"), (2, "(0)"), (3, "(0)"),
+                    (4, "(0)"), (5, "(2)"), (6, "(0)"),
+                    technique="tie",
+                )
+            ]
+            madow_backing["143"] = [
+                glyph(slot, (5, "4"), (6, "5")) for slot in range(0, 16, 2)
+            ]
+            madow_backing["146"] = [
+                *[glyph(slot, (5, "4"), (6, "3")) for slot in (0, 2, 4, 6)],
+                *[glyph(slot, (5, "5"), (6, "3")) for slot in (8, 10, 12, 14)],
+            ]
+            madow_backing["147"] = [
+                glyph(slot, (5, "4"), (6, "5")) for slot in range(0, 16, 2)
+            ]
+            madow_backing["171"] = [
+                glyph(
+                    0,
+                    (1, "(0)"), (2, "(1)"), (3, "(0)"),
+                    (4, "(0)"), (5, "(2)"), (6, "(0)"),
+                    technique="tie",
+                ),
+                *[
+                    glyph(slot, (1, "0"), (2, "1"), (3, "0"), (4, "0"), (5, "2"), (6, "0"))
+                    for slot in (2, 4, 6, 8, 10, 12, 14)
+                ],
+            ]
+            madow_backing["176"] = [
+                glyph(
+                    0,
+                    (1, "(0)"), (2, "(0)"), (3, "(0)"),
+                    (4, "(0)"), (5, "(2)"), (6, "(0)"),
+                    technique="tie",
+                ),
+                *[
+                    glyph(slot, (1, "0"), (2, "0"), (3, "0"), (4, "0"), (5, "2"), (6, "0"))
+                    for slot in (2, 4, 6, 8, 10, 12, 14)
+                ],
+            ]
+
+    if "life-over" not in data:
+        return
+
+    life = data["life-over"]  # type: ignore[index]
+    lead = life["lead"]  # type: ignore[index]
+    backing = life["backing"]  # type: ignore[index]
 
     # The narrow quarter-rest and note-stem shapes were the two recurring OCR
     # failures in the lead track.  The native 1920x1080 source frames confirm
@@ -858,7 +1027,7 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
 
 def update_manifests(reports: dict[str, object]) -> None:
     for source in SOURCES:
-        if source.key.endswith(".third"):
+        if source.key.endswith(".third") or source.key not in reports:
             continue
         manifest = ROOT / "audit" / "measure-frames" / source.directory / "manifest.csv"
         with manifest.open("r", encoding="utf-8-sig", newline="") as handle:
@@ -894,26 +1063,60 @@ def main() -> None:
         action="store_true",
         help="apply native-frame corrections to the existing JSON without rerunning OCR",
     )
+    parser.add_argument(
+        "--merge-into",
+        type=Path,
+        help="after repairing, merge the song data into another audit JSON",
+    )
+    parser.add_argument(
+        "--source-prefix",
+        choices=("life-over", "madow"),
+        help="rerun OCR only for one song and preserve the other song's existing audit data",
+    )
     args = parser.parse_args()
 
     if args.repair_existing:
         data = json.loads(args.output.read_text(encoding="utf-8"))
         apply_manual_corrections(data)
         args.output.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        if args.merge_into is not None:
+            merged = json.loads(args.merge_into.read_text(encoding="utf-8"))
+            for song_id, song_data in data.items():
+                merged[song_id] = song_data
+            args.merge_into.write_text(
+                json.dumps(merged, ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            print(f"merged repaired data into {args.merge_into}")
         print(f"repaired {args.output}")
         return
 
     if not OCR_TOOLS.exists():
         raise SystemExit("OCR tools are missing. Install rapidocr_onnxruntime under audit/ocr-tools first.")
+    from rapidocr_onnxruntime import RapidOCR  # type: ignore
+
     ocr = RapidOCR()
-    data: dict[str, object] = {}
-    reports: dict[str, object] = {}
-    for source in SOURCES:
+    selected_sources = tuple(
+        source for source in SOURCES
+        if args.source_prefix is None or source.key.startswith(f"{args.source_prefix}.")
+    )
+    data: dict[str, object] = (
+        json.loads(args.output.read_text(encoding="utf-8"))
+        if args.source_prefix and args.output.exists()
+        else {}
+    )
+    reports: dict[str, object] = (
+        json.loads(args.report.read_text(encoding="utf-8"))
+        if args.source_prefix and args.report.exists()
+        else {}
+    )
+    for source in selected_sources:
         measures, report = transcribe_source(source, ocr)
         set_nested(data, source.key, measures)
         reports[source.key] = report
 
-    apply_manual_corrections(data)
+    if "life-over" in data:
+        apply_manual_corrections(data)
     args.output.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     args.report.write_text(json.dumps(reports, ensure_ascii=False, indent=2), encoding="utf-8")
     update_manifests(reports)

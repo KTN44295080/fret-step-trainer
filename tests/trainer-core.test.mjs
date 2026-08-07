@@ -2,12 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  beatsForMeasure,
   centsBetween,
   detectPitch,
   frequencyFor,
+  measurePosition,
   nearestPlaybackRate,
   playbackPositionSteps,
   positionToMeasure,
+  stepsBeforeMeasure,
+  stepsInRange,
   videoTimeForPosition,
 } from "../app/trainer-core.mjs";
 
@@ -21,6 +25,18 @@ test("video position uses the original score clock", () => {
   assert.equal(videoTimeForPosition(215, 170, 1), 215);
   assert.equal(videoTimeForPosition(215, 170, 2), 215 + (4 * 60) / 170);
   assert.equal(videoTimeForPosition(0, 194, 5, 8), (72 * 15) / 194);
+});
+
+test("mixed-meter timing keeps the Madow Star bridge aligned", () => {
+  const meterMap = { 18: 6, 117: 5, 118: 5, 119: 5, 120: 6, 121: 5, 122: 5, 123: 5, 124: 6 };
+  assert.equal(beatsForMeasure(18, meterMap), 6);
+  assert.equal(beatsForMeasure(116, meterMap), 4);
+  assert.equal(beatsForMeasure(120, meterMap), 6);
+  assert.equal(stepsInRange(117, 124, meterMap), 168);
+  assert.equal(stepsBeforeMeasure(125, meterMap), 2032);
+  assert.equal(videoTimeForPosition(1.2, 194, 125, 0, meterMap), 1.2 + (2032 * 15) / 194);
+  assert.deepEqual(measurePosition(117, 124, 20, meterMap), { measure: 118, step: 0 });
+  assert.equal(positionToMeasure(117, 124, 116, meterMap), 122);
 });
 
 test("playback playhead survives tempo changes and resume", () => {

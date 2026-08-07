@@ -8,8 +8,12 @@ import {
   detectPitch,
   frequencyFor,
   nearestPlaybackRate,
+  measurePosition,
   playbackPositionSteps,
   positionToMeasure,
+  stepsBeforeMeasure,
+  stepsForMeasure,
+  stepsInRange,
   videoTimeForPosition,
 } from "./trainer-core.mjs";
 
@@ -408,6 +412,7 @@ type SongDefinition = {
   totalMeasures: number;
   originalBpm: number;
   capo: number;
+  meterMap: Record<number, number>;
   map: SongPart[];
   defaultTrack: TrackId;
   tracks: Partial<Record<TrackId, TrackInfo>>;
@@ -701,6 +706,7 @@ const SONGS: Record<SongId, SongDefinition> = {
     totalMeasures: 151,
     originalBpm: 170,
     capo: 3,
+    meterMap: {},
     map: LIFE_OVER_SONG_MAP,
     defaultTrack: "lead",
     tracks: {
@@ -736,6 +742,17 @@ const SONGS: Record<SongId, SongDefinition> = {
     totalMeasures: 207,
     originalBpm: 194,
     capo: 0,
+    meterMap: {
+      18: 6,
+      117: 5,
+      118: 5,
+      119: 5,
+      120: 6,
+      121: 5,
+      122: 5,
+      123: 5,
+      124: 6,
+    },
     map: MADOW_SONG_MAP,
     defaultTrack: "backing",
     tracks: {
@@ -794,6 +811,19 @@ function parseFretSymbol(text: string) {
 type AuditedTabData = Record<SongId, Partial<Record<TrackId, Record<string, ScoreGlyph[]>>>>;
 const AUDITED_TAB_DATA = tabAuditData as AuditedTabData;
 const AUDIT_REVIEW_MEASURES = new Set<string>();
+const MADOW_NATIVE_FRAME_CONFIRMED = new Set<string>([
+  ...[7, 57, 73, 93, 149, 184, 200, 201, 202, 204, 207].map((measure) => `madow:lead:${measure}`),
+  ...[78, 79, 138, 143, 146, 147, 171, 176].map((measure) => `madow:backing:${measure}`),
+]);
+const MADOW_NEEDS_REVIEW = new Set<string>([
+  ...[2, 3, 17, 18, 22, 26, 40, 60, 64, 68, 76, 77, 78, 79, 80, 81, 82,
+    97, 110, 113, 114, 115, 119, 120, 121, 122, 124, 129, 133, 137, 141,
+    144, 148, 158, 165, 171, 183, 196, 197, 203].map((measure) => `madow:lead:${measure}`),
+  ...[2, 3, 4, 5, 6, 8, 9, 11, 12, 14, 16, 20, 22, 24, 26, 28, 30, 32,
+    34, 39, 40, 56, 67, 68, 80, 82, 85, 87, 88, 90, 91, 97, 117, 118, 119,
+    120, 121, 130, 140, 141, 142, 144, 145, 149, 158, 197, 199, 200, 202,
+    204, 206, 207].map((measure) => `madow:backing:${measure}`),
+]);
 
 function auditedGlyphRecord(songId: SongId, trackId: TrackId) {
   const source = AUDITED_TAB_DATA[songId]?.[trackId] ?? {};
@@ -845,8 +875,17 @@ function notesForTrack(songId: SongId, trackId: TrackId) {
 
 function scoreAuditStatus(songId: SongId, trackId: TrackId, measure: number) {
   const glyphs = AUDITED_GLYPHS[songId]?.[trackId]?.[measure] ?? [];
-  if (AUDIT_REVIEW_MEASURES.has(`${songId}:${trackId}:${measure}`)) {
+  const auditKey = `${songId}:${trackId}:${measure}`;
+  if (MADOW_NATIVE_FRAME_CONFIRMED.has(auditKey)) {
+    return { label: "1920×1080原動画で目視確認", tone: "verified" as const };
+  }
+  if (AUDIT_REVIEW_MEASURES.has(auditKey) || MADOW_NEEDS_REVIEW.has(auditKey)) {
     return { label: "数字を動画で要確認", tone: "review" as const };
+  }
+  if (songId === "madow") {
+    return glyphs.length > 0
+      ? { label: "高解像度OCR転記・未目視", tone: "review" as const }
+      : { label: "譜面未転記・要確認", tone: "review" as const };
   }
   return glyphs.length > 0
     ? { label: "原動画フレーム読取", tone: "verified" as const }
@@ -862,7 +901,13 @@ function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number):
         const fret = parseFretSymbol(symbol.text);
         return fret === null
           ? []
-          : [{ measure, step: glyph.slot, stringNo: symbol.stringNo, fret, durationSteps: 2 }];
+          : [{
+              measure,
+              step: Math.round((glyph.slot / 16) * stepsForMeasure(measure, SONGS[songId].meterMap)),
+              stringNo: symbol.stringNo,
+              fret,
+              durationSteps: 2,
+            }];
       });
     });
   }
@@ -882,7 +927,7 @@ function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number):
 }
 
 function videoTimeForMeasure(song: SongDefinition, track: TrackInfo, measure: number) {
-  return Math.round(videoTimeForPosition(track.videoStartSeconds, song.originalBpm, measure));
+  return Math.round(videoTimeForPosition(track.videoStartSeconds, song.originalBpm, measure, 0, song.meterMap));
 }
 
 function formatClock(totalSeconds: number) {
@@ -890,8 +935,8 @@ function formatClock(totalSeconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function rangeDuration(startMeasure: number, endMeasure: number, bpm: number) {
-  return formatClock(((endMeasure - startMeasure + 1) * 4 * 60) / bpm);
+function rangeDuration(startMeasure: number, endMeasure: number, bpm: number, meterMap: Record<number, number>) {
+  return formatClock((stepsInRange(startMeasure, endMeasure, meterMap) * 15) / bpm);
 }
 
 const STRING_RANGE: StringNumber[] = [1, 2, 3, 4, 5, 6];
@@ -1053,12 +1098,16 @@ function ProceduralTabMeasure({
   measure,
   glyphs,
   label,
+  beats,
 }: {
   measure: number;
   glyphs: ScoreGlyph[];
   label: string;
+  beats: number;
 }) {
   const hasNotes = glyphs.length > 0;
+  const measureSteps = beats * 4;
+  const displaySlot = (slot: number) => Math.min(measureSteps - 1, Math.round((slot / 16) * measureSteps));
 
   return (
     <section className="overflow-x-auto rounded-xl border border-lime-300/50 bg-stone-900" aria-label={`${measure}小節目、${label}`}>
@@ -1066,7 +1115,10 @@ function ProceduralTabMeasure({
         <p className="text-sm font-bold tabular-nums">MEASURE {String(measure).padStart(3, "0")}</p>
         <p className="text-xs font-bold text-lime-300">{hasNotes ? label.toUpperCase() : "REST"}</p>
       </div>
-      <div className={cn("tab-measure", hasNotes ? "tab-measure-technique" : "tab-measure-rest")}>
+      <div
+        className={cn("tab-measure", hasNotes ? "tab-measure-technique" : "tab-measure-rest")}
+        style={{ gridTemplateColumns: `repeat(${measureSteps}, minmax(2.15rem, 1fr))`, minWidth: `${measureSteps * 2.15}rem` }}
+      >
         {STRING_RANGE.map((stringNo) => (
           <div className="tab-string-line" key={`${label}-line-${measure}-${stringNo}`} style={{ gridRow: stringNo }} aria-hidden="true" />
         ))}
@@ -1074,14 +1126,14 @@ function ProceduralTabMeasure({
           <span
             className="tab-symbol tab-glyph"
             key={`${measure}-${glyphIndex}-${symbolIndex}`}
-            style={{ gridColumn: `${glyph.slot + 1}`, gridRow: symbol.stringNo }}
+            style={{ gridColumn: `${displaySlot(glyph.slot) + 1}`, gridRow: symbol.stringNo }}
           >
             {symbol.text}
           </span>
         ))) : <span className="tab-whole-rest" aria-hidden="true">━</span>}
       </div>
-      <div className="grid grid-cols-8 border-t border-stone-800 px-2 py-2 text-center text-[0.65rem] font-bold text-stone-500" aria-hidden="true">
-        {['1', '＆', '2', '＆', '3', '＆', '4', '＆'].map((beat, index) => <span key={`${measure}-${label}-beat-${index}`}>{beat}</span>)}
+      <div className="grid border-t border-stone-800 px-2 py-2 text-center text-[0.65rem] font-bold text-stone-500" style={{ gridTemplateColumns: `repeat(${beats * 2}, minmax(0, 1fr))` }} aria-hidden="true">
+        {Array.from({ length: beats }, (_, index) => [String(index + 1), "＆"]).flat().map((beat, index) => <span key={`${measure}-${label}-beat-${index}`}>{beat}</span>)}
       </div>
     </section>
   );
@@ -1119,7 +1171,12 @@ function ScoreMeasure({
   const audit = scoreAuditStatus(songId, trackId, measure);
   const proceduralGlyphs = glyphsForTrack(songId, trackId, measure);
   const proceduralLabel = trackId === "lead" ? "LEAD GUITAR" : trackId === "backing" ? "BACKING GUITAR" : "GUITAR 3";
-  const score = <ProceduralTabMeasure measure={measure} glyphs={proceduralGlyphs} label={proceduralLabel} />;
+  const score = <ProceduralTabMeasure
+    measure={measure}
+    glyphs={proceduralGlyphs}
+    label={proceduralLabel}
+    beats={SONGS[songId].meterMap[measure] ?? 4}
+  />;
 
   return (
     <div className="score-measure" data-playing={isPlaying}>
@@ -1381,7 +1438,7 @@ export function GuitarTrainer() {
     {
       id: "page",
       title: "表示4小節",
-      detail: `${selectedScorePage.start}〜${selectedScorePage.end} · ${rangeDuration(selectedScorePage.start, selectedScorePage.end, bpm)}`,
+      detail: `${selectedScorePage.start}〜${selectedScorePage.end} · ${rangeDuration(selectedScorePage.start, selectedScorePage.end, bpm, song.meterMap)}`,
       start: selectedScorePage.start,
       end: selectedScorePage.end,
       label: `表示4小節 ${selectedScorePage.start}〜${selectedScorePage.end}`,
@@ -1389,7 +1446,7 @@ export function GuitarTrainer() {
     {
       id: "section",
       title: "この区間",
-      detail: `${currentSongPart.label} ${currentSongPart.range} · ${rangeDuration(currentSongPart.start, currentSongPart.end, bpm)}`,
+      detail: `${currentSongPart.label} ${currentSongPart.range} · ${rangeDuration(currentSongPart.start, currentSongPart.end, bpm, song.meterMap)}`,
       start: currentSongPart.start,
       end: currentSongPart.end,
       label: `${currentSongPart.label} ${currentSongPart.range}`,
@@ -1397,7 +1454,7 @@ export function GuitarTrainer() {
     {
       id: "full",
       title: `曲全体 1〜${song.totalMeasures}`,
-      detail: `休みも含む · ${rangeDuration(1, song.totalMeasures, bpm)}`,
+      detail: `休みも含む · ${rangeDuration(1, song.totalMeasures, bpm, song.meterMap)}`,
       start: 1,
       end: song.totalMeasures,
       label: `曲全体 1〜${song.totalMeasures}小節`,
@@ -1405,7 +1462,7 @@ export function GuitarTrainer() {
     {
       id: "remaining",
       title: "現在地から最後まで",
-      detail: `${remainingStartMeasure}〜${song.totalMeasures} · ${rangeDuration(remainingStartMeasure, song.totalMeasures, bpm)}`,
+      detail: `${remainingStartMeasure}〜${song.totalMeasures} · ${rangeDuration(remainingStartMeasure, song.totalMeasures, bpm, song.meterMap)}`,
       start: remainingStartMeasure,
       end: song.totalMeasures,
       label: `現在地 ${remainingStartMeasure}〜${song.totalMeasures}小節`,
@@ -1413,14 +1470,14 @@ export function GuitarTrainer() {
     {
       id: "loop",
       title: `A/B ${loopStart}〜${loopEnd}`,
-      detail: `${loopEnabled ? "繰り返しON" : "1回再生"} · ${rangeDuration(loopStart, loopEnd, bpm)}`,
+      detail: `${loopEnabled ? "繰り返しON" : "1回再生"} · ${rangeDuration(loopStart, loopEnd, bpm, song.meterMap)}`,
       start: loopStart,
       end: loopEnd,
       label: `A/Bループ ${loopStart}〜${loopEnd}小節`,
     },
   ];
   const selectedPlaybackChoice = playbackChoices.find((choice) => choice.id === playbackPreset) ?? playbackChoices[0];
-  const selectedPlaybackTotalSteps = (selectedPlaybackChoice.end - selectedPlaybackChoice.start + 1) * 16;
+  const selectedPlaybackTotalSteps = stepsInRange(selectedPlaybackChoice.start, selectedPlaybackChoice.end, song.meterMap);
   const selectedPlaybackProgress = clamp(playbackProgressSteps / selectedPlaybackTotalSteps, 0, 1);
   const canResumeSelected = pausedSession?.startMeasure === selectedPlaybackChoice.start
     && pausedSession.endMeasure === selectedPlaybackChoice.end;
@@ -1482,7 +1539,7 @@ export function GuitarTrainer() {
     setPausedSession(paused);
     setPlaybackProgressSteps(positionSteps);
     setPlaying(false);
-    setPlaybackMeasure(positionToMeasure(session.startMeasure, session.endMeasure, positionSteps));
+    setPlaybackMeasure(positionToMeasure(session.startMeasure, session.endMeasure, positionSteps, song.meterMap));
     sendVideoCommand("pauseVideo");
   }, [clearPlaybackSchedule, sendVideoCommand]);
 
@@ -1553,20 +1610,24 @@ export function GuitarTrainer() {
             moveToNoteIndex(nextIndex);
             if (guidedMode) {
               setGuidedWaiting(false);
-              const currentAbsoluteStep = (currentNote.measure - 1) * 16 + currentNote.tick * 2;
-              const nextAbsoluteStep = (nextNote.measure - 1) * 16 + nextNote.tick * 2;
+              const currentAbsoluteStep = stepsBeforeMeasure(currentNote.measure, song.meterMap)
+                + (currentNote.tick * 2 / 16) * stepsForMeasure(currentNote.measure, song.meterMap);
+              const nextAbsoluteStep = stepsBeforeMeasure(nextNote.measure, song.meterMap)
+                + (nextNote.tick * 2 / 16) * stepsForMeasure(nextNote.measure, song.meterMap);
               const transitionSteps = Math.max(1, nextAbsoluteStep - currentAbsoluteStep);
               const fromVideoTime = videoTimeForPosition(
                 track.videoStartSeconds,
                 song.originalBpm,
                 currentNote.measure,
-                currentNote.tick * 2,
+                (currentNote.tick * 2 / 16) * stepsForMeasure(currentNote.measure, song.meterMap),
+                song.meterMap,
               );
               const nextVideoTime = videoTimeForPosition(
                 track.videoStartSeconds,
                 song.originalBpm,
                 nextNote.measure,
-                nextNote.tick * 2,
+                (nextNote.tick * 2 / 16) * stepsForMeasure(nextNote.measure, song.meterMap),
+                song.meterMap,
               );
               sendVideoCommand("seekTo", [fromVideoTime, true]);
               sendVideoCommand("setPlaybackRate", [bpm / song.originalBpm]);
@@ -1693,7 +1754,8 @@ export function GuitarTrainer() {
       track.videoStartSeconds,
       song.originalBpm,
       currentNote.measure,
-      currentNote.tick * 2,
+      (currentNote.tick * 2 / 16) * stepsForMeasure(currentNote.measure, song.meterMap),
+      song.meterMap,
     ), true]);
     sendVideoCommand("setPlaybackRate", [bpm / song.originalBpm]);
     sendVideoCommand("pauseVideo");
@@ -1768,7 +1830,7 @@ export function GuitarTrainer() {
     const context = getAudioContext();
     void context.resume();
     const secondsPerStep = 15 / nextBpm;
-    const totalSteps = (endMeasure - startMeasure + 1) * 16;
+    const totalSteps = stepsInRange(startMeasure, endMeasure, song.meterMap);
     const earliestStep = countIn ? -16 : 0;
     const boundedPosition = Math.min(totalSteps, Math.max(earliestStep, positionSteps));
     const startAt = context.currentTime + 0.03;
@@ -1786,13 +1848,15 @@ export function GuitarTrainer() {
 
     if (videoSync) {
       const scorePosition = Math.max(0, boundedPosition);
-      const positionMeasure = positionToMeasure(startMeasure, endMeasure, scorePosition);
-      const stepInMeasure = scorePosition % 16;
+      const position = measurePosition(startMeasure, endMeasure, scorePosition, song.meterMap);
+      const positionMeasure = position.measure;
+      const stepInMeasure = position.step;
       const videoSeconds = videoTimeForPosition(
         track.videoStartSeconds,
         song.originalBpm,
         positionMeasure,
         stepInMeasure,
+        song.meterMap,
       );
       sendVideoCommand("seekTo", [videoSeconds, true]);
       sendVideoCommand("setPlaybackRate", [nextBpm / song.originalBpm]);
@@ -1823,10 +1887,11 @@ export function GuitarTrainer() {
       }
     }
 
+    let measureOffset = 0;
     for (let measure = startMeasure; measure <= endMeasure; measure += 1) {
-      const measureOffset = (measure - startMeasure) * 16;
+      const measureSteps = stepsForMeasure(measure, song.meterMap);
       if (metronome) {
-        for (let step = 0; step < 16; step += 4) {
+        for (let step = 0; step < measureSteps; step += 4) {
           const clickStep = measureOffset + step;
           if (clickStep + 0.001 >= boundedPosition) {
             scheduleClick(context, startAt + (clickStep - boundedPosition) * secondsPerStep, step === 0);
@@ -1859,18 +1924,16 @@ export function GuitarTrainer() {
           setTimelineMeasure(measure);
           setScorePageIndex(Math.floor((measure - 1) / 4));
           if (videoSync) {
-            sendVideoCommand("seekTo", [videoTimeForPosition(track.videoStartSeconds, song.originalBpm, measure), true]);
+            sendVideoCommand("seekTo", [videoTimeForPosition(track.videoStartSeconds, song.originalBpm, measure, 0, song.meterMap), true]);
             sendVideoCommand("setPlaybackRate", [nextBpm / song.originalBpm]);
           }
         }, (measureOffset - boundedPosition) * secondsPerStep * 1000);
         timerIdsRef.current.push(measureTimer);
       }
+      measureOffset += measureSteps;
     }
 
-    const currentMeasure = startMeasure + Math.min(
-      endMeasure - startMeasure,
-      Math.max(0, Math.floor(boundedPosition / 16)),
-    );
+    const currentMeasure = positionToMeasure(startMeasure, endMeasure, boundedPosition, song.meterMap);
     setPlaying(true);
     setPlaybackLabel(label);
     setPlaybackMeasure(currentMeasure);
