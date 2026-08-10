@@ -35,6 +35,7 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /170 BPM/);
   assert.match(html, /Capo 3/);
   assert.match(html, /惑う星/);
+  assert.match(html, /2曲通し（カポなし）/);
   assert.doesNotMatch(html, /3パート切替/);
   assert.doesNotMatch(html, /2パート切替/);
   assert.match(html, /ギターパートを選択/);
@@ -109,6 +110,13 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   assert.match(trainer, /auditedGlyphRecord\("life-over", "third"\)/);
   assert.match(trainer, /function switchSong/);
   assert.match(trainer, /function switchTrack/);
+  assert.match(trainer, /function startMedley/);
+  assert.match(trainer, /function startMadowMedley/);
+  assert.match(trainer, /capo: 0, medleyPhase: "life"/);
+  assert.match(trainer, /capo: 0, medleyPhase: "madow"/);
+  assert.match(trainer, /transposeLifeLeadSymbolForNoCapo/);
+  assert.match(trainer, /if \(text === "<5>"\) return "3\/AH8"/);
+  assert.match(trainer, /setMedleySurface\("madow", "backing"/);
   assert.match(trainer, /type TrackId = "lead" \| "backing" \| "third"/);
   assert.match(trainer, /function toggleSelectedPlayback/);
   assert.match(trainer, /function seekToMeasure/);

@@ -792,6 +792,8 @@ type PlaybackEvent = {
   noteId?: string;
 };
 
+type MedleyPhase = "life" | "madow";
+
 type PlaybackSession = {
   startMeasure: number;
   endMeasure: number;
@@ -799,12 +801,16 @@ type PlaybackSession = {
   bpm: number;
   positionSteps: number;
   scheduledAt: number;
+  songId: SongId;
+  trackId: TrackId;
+  capo: number;
+  medleyPhase?: MedleyPhase;
 };
 
-type PlaybackPreset = "page" | "section" | "remaining" | "loop";
+type PlaybackPreset = "page" | "section" | "remaining" | "loop" | "medley";
 
 function parseFretSymbol(text: string) {
-  if (text.includes("×") || text.startsWith("(")) return null;
+  if (text.includes("×") || text.includes("AH") || text.startsWith("(")) return null;
   const match = text.match(/\d+/);
   if (!match) return null;
   const fret = Number(match[0]);
@@ -871,11 +877,38 @@ const AUDITED_NOTES: Record<SongId, Partial<Record<TrackId, ReturnType<typeof no
   },
 };
 
-function glyphsForTrack(songId: SongId, trackId: TrackId, measure: number) {
+function transposeLifeLeadSymbolForNoCapo(text: string) {
+  if (text === "<5>") return "3/AH8";
+  if (text.includes("×")) return text;
+  return text.replace(/\d+/, (fret) => String(Number(fret) + 3));
+}
+
+const LIFE_NO_CAPO_LEAD_GLYPHS = Object.fromEntries(
+  Object.entries(AUDITED_GLYPHS["life-over"].lead!).map(([measure, glyphs]) => [
+    Number(measure),
+    glyphs.map((glyph) => ({
+      ...glyph,
+      symbols: glyph.symbols.map((symbol) => ({
+        ...symbol,
+        text: transposeLifeLeadSymbolForNoCapo(symbol.text),
+      })),
+    })),
+  ]),
+) as Record<number, ScoreGlyph[]>;
+
+const LIFE_NO_CAPO_LEAD_NOTES = notesFromGlyphs(LIFE_NO_CAPO_LEAD_GLYPHS, "life-lead-no-capo");
+
+function glyphsForTrack(songId: SongId, trackId: TrackId, measure: number, noCapoLifeLead = false) {
+  if (noCapoLifeLead && songId === "life-over" && trackId === "lead") {
+    return LIFE_NO_CAPO_LEAD_GLYPHS[measure] ?? [];
+  }
   return AUDITED_GLYPHS[songId]?.[trackId]?.[measure] ?? [];
 }
 
-function notesForTrack(songId: SongId, trackId: TrackId) {
+function notesForTrack(songId: SongId, trackId: TrackId, noCapoLifeLead = false) {
+  if (noCapoLifeLead && songId === "life-over" && trackId === "lead") {
+    return LIFE_NO_CAPO_LEAD_NOTES;
+  }
   return AUDITED_NOTES[songId]?.[trackId] ?? [];
 }
 
@@ -898,8 +931,8 @@ function scoreAuditStatus(songId: SongId, trackId: TrackId, measure: number) {
     : { label: "原動画上で休み", tone: "rest" as const };
 }
 
-function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number): PlaybackEvent[] {
-  const glyphs = glyphsForTrack(songId, trackId, measure);
+function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number, noCapoLifeLead = false): PlaybackEvent[] {
+  const glyphs = glyphsForTrack(songId, trackId, measure, noCapoLifeLead);
   if (glyphs) {
     const measureSteps = stepsForMeasure(measure, SONGS[songId].meterMap);
     const baseEvents = glyphs.flatMap((glyph) => {
@@ -918,7 +951,7 @@ function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number):
       });
     });
     const nextMeasure = measure + 1;
-    const nextGlyphs = glyphsForTrack(songId, trackId, nextMeasure);
+    const nextGlyphs = glyphsForTrack(songId, trackId, nextMeasure, noCapoLifeLead);
     const nextMeasureSteps = stepsForMeasure(nextMeasure, SONGS[songId].meterMap);
     return baseEvents.map((event) => {
       const hasLaterMatchingAttack = baseEvents.some((candidate) => (
@@ -966,6 +999,14 @@ function formatClock(totalSeconds: number) {
 
 function rangeDuration(startMeasure: number, endMeasure: number, bpm: number, meterMap: Record<number, number>) {
   return formatClock((stepsInRange(startMeasure, endMeasure, meterMap) * 15) / bpm);
+}
+
+function medleyDuration(playbackRate: number) {
+  const life = SONGS["life-over"];
+  const madow = SONGS.madow;
+  const lifeSeconds = (stepsInRange(1, life.totalMeasures, life.meterMap) * 15) / (life.originalBpm * playbackRate);
+  const madowSeconds = (stepsInRange(1, madow.totalMeasures, madow.meterMap) * 15) / (madow.originalBpm * playbackRate);
+  return formatClock(lifeSeconds + madowSeconds);
 }
 
 const STRING_RANGE: StringNumber[] = [1, 2, 3, 4, 5, 6];
@@ -1216,6 +1257,7 @@ function ScoreMeasure({
   songId,
   trackId,
   measure,
+  noCapoLifeLead,
   isPlaying,
   cursorStep,
   onSeek,
@@ -1223,12 +1265,15 @@ function ScoreMeasure({
   songId: SongId;
   trackId: TrackId;
   measure: number;
+  noCapoLifeLead: boolean;
   isPlaying: boolean;
   cursorStep: number | null;
   onSeek: (measure: number, step: number) => void;
 }) {
-  const proceduralGlyphs = glyphsForTrack(songId, trackId, measure);
-  const proceduralLabel = trackId === "lead" ? "LEAD GUITAR" : trackId === "backing" ? "BACKING GUITAR" : "GUITAR 3";
+  const proceduralGlyphs = glyphsForTrack(songId, trackId, measure, noCapoLifeLead);
+  const proceduralLabel = noCapoLifeLead
+    ? "LEAD · CAPO 0"
+    : trackId === "lead" ? "LEAD GUITAR" : trackId === "backing" ? "BACKING GUITAR" : "GUITAR 3";
   const score = <ProceduralTabMeasure
     measure={measure}
     glyphs={proceduralGlyphs}
@@ -1296,6 +1341,8 @@ function TechniqueGuideCard({
 export function GuitarTrainer() {
   const [songId, setSongId] = useState<SongId>("life-over");
   const [trackId, setTrackId] = useState<TrackId>("lead");
+  const [medleyMode, setMedleyMode] = useState(false);
+  const [medleyPhase, setMedleyPhase] = useState<MedleyPhase | null>(null);
   const [noteIndex, setNoteIndex] = useState(0);
   const [scorePageIndex, setScorePageIndex] = useState(0);
   const [timelineMeasure, setTimelineMeasure] = useState(1);
@@ -1421,7 +1468,9 @@ export function GuitarTrainer() {
   const song = SONGS[songId];
   const effectiveTrackId = song.tracks[trackId] ? trackId : song.defaultTrack;
   const track = trackFor(song, effectiveTrackId);
-  const activeNotes = notesForTrack(songId, effectiveTrackId);
+  const noCapoLifeLead = medleyMode && songId === "life-over" && effectiveTrackId === "lead";
+  const effectiveCapo = noCapoLifeLead ? 0 : song.capo;
+  const activeNotes = notesForTrack(songId, effectiveTrackId, noCapoLifeLead);
   const activeScorePages = scorePages(song.totalMeasures);
 
   useEffect(() => {
@@ -1449,7 +1498,7 @@ export function GuitarTrainer() {
   }, [activeNotes]);
 
   const currentNote = activeNotes[Math.min(noteIndex, activeNotes.length - 1)];
-  const targetFrequency = frequencyFor(currentNote.stringNo, currentNote.fret, song.capo);
+  const targetFrequency = frequencyFor(currentNote.stringNo, currentNote.fret, effectiveCapo);
   const selectedTunerString = tunerString === "auto"
     ? null
     : TUNER_STRINGS.find((candidate) => candidate.stringNo === tunerString) ?? null;
@@ -1487,6 +1536,7 @@ export function GuitarTrainer() {
   const activeMeasure = playbackMeasure ?? timelineMeasure;
   const currentSongPart = song.map.find((part) => activeMeasure >= part.start && activeMeasure <= part.end) ?? song.map[0];
   const remainingStartMeasure = activeMeasure;
+  const medleyPlaybackRate = bpm / song.originalBpm;
   const playbackChoices: Array<{
     id: PlaybackPreset;
     title: string;
@@ -1494,7 +1544,16 @@ export function GuitarTrainer() {
     start: number;
     end: number;
     label: string;
-  }> = [
+  }> = medleyMode ? [
+    {
+      id: "medley",
+      title: playing ? "2曲通しを停止" : "2曲通しを再生",
+      detail: `人生オーバー LEAD → 惑う星 BACKING · 約${medleyDuration(medleyPlaybackRate)}`,
+      start: 1,
+      end: song.totalMeasures,
+      label: "2曲通し（カポなし）",
+    },
+  ] : [
     {
       id: "page",
       title: "表示4小節",
@@ -1529,15 +1588,18 @@ export function GuitarTrainer() {
     },
   ];
   const selectedPlaybackChoice = playbackChoices.find((choice) => choice.id === playbackPreset) ?? playbackChoices[0];
-  const canResumeSelected = pausedSession?.startMeasure === selectedPlaybackChoice.start
-    && pausedSession.endMeasure === selectedPlaybackChoice.end;
+  const canResumeSelected = playbackPreset === "medley"
+    ? Boolean(pausedSession?.medleyPhase)
+    : pausedSession?.startMeasure === selectedPlaybackChoice.start
+      && pausedSession.endMeasure === selectedPlaybackChoice.end;
   const cursorSession = playbackSessionRef.current ?? pausedSession;
+  const cursorSong = cursorSession ? SONGS[cursorSession.songId] : song;
   const scoreCursor = cursorSession
     ? measurePosition(
         cursorSession.startMeasure,
         cursorSession.endMeasure,
         Math.max(0, playbackProgressSteps),
-        song.meterMap,
+        cursorSong.meterMap,
       )
     : { measure: activeMeasure, step: timelineStep };
 
@@ -1582,6 +1644,7 @@ export function GuitarTrainer() {
     setPlaying(false);
     setPlaybackMeasure(null);
     setPlaybackLabel("");
+    setMedleyPhase(null);
     sendVideoCommand("pauseVideo");
   }, [clearPlaybackSchedule, sendVideoCommand]);
 
@@ -1598,7 +1661,7 @@ export function GuitarTrainer() {
     setPausedSession(paused);
     setPlaybackProgressSteps(positionSteps);
     setPlaying(false);
-    setPlaybackMeasure(positionToMeasure(session.startMeasure, session.endMeasure, positionSteps, song.meterMap));
+    setPlaybackMeasure(positionToMeasure(session.startMeasure, session.endMeasure, positionSteps, SONGS[session.songId].meterMap));
     sendVideoCommand("pauseVideo");
   }, [clearPlaybackSchedule, sendVideoCommand]);
 
@@ -1830,13 +1893,14 @@ export function GuitarTrainer() {
     context: AudioContext,
     stringNo: StringNumber,
     fret: number,
+    capo: number,
     startAt: number,
     duration: number,
   ) {
     const gain = context.createGain();
     const oscillator = context.createOscillator();
     const overtone = context.createOscillator();
-    const frequency = frequencyFor(stringNo, fret, song.capo);
+    const frequency = frequencyFor(stringNo, fret, capo);
 
     oscillator.type = "triangle";
     oscillator.frequency.setValueAtTime(frequency, startAt);
@@ -1876,7 +1940,7 @@ export function GuitarTrainer() {
   function playCurrentNote() {
     const context = getAudioContext();
     void context.resume();
-    schedulePluck(context, currentNote.stringNo, currentNote.fret, context.currentTime + 0.04, 0.7);
+    schedulePluck(context, currentNote.stringNo, currentNote.fret, effectiveCapo, context.currentTime + 0.04, 0.7);
   }
 
   function scheduleRange(
@@ -1885,12 +1949,29 @@ export function GuitarTrainer() {
     label: string,
     nextBpm: number,
     positionSteps: number,
+    options: {
+      songId?: SongId;
+      trackId?: TrackId;
+      capo?: number;
+      medleyPhase?: MedleyPhase;
+      countIn?: boolean;
+    } = {},
   ) {
+    const scheduledSongId = options.songId ?? songId;
+    const scheduledTrackId = options.trackId ?? trackId;
+    const scheduledSong = SONGS[scheduledSongId];
+    const scheduledTrack = trackFor(scheduledSong, scheduledTrackId);
+    const scheduledCapo = options.capo ?? scheduledSong.capo;
+    const scheduledNoCapoLifeLead = scheduledSongId === "life-over"
+      && scheduledTrackId === "lead"
+      && scheduledCapo === 0;
+    const scheduledNotes = notesForTrack(scheduledSongId, scheduledTrackId, scheduledNoCapoLifeLead);
+    const useCountIn = options.countIn ?? countIn;
     const context = getAudioContext();
     void context.resume();
     const secondsPerStep = 15 / nextBpm;
-    const totalSteps = stepsInRange(startMeasure, endMeasure, song.meterMap);
-    const earliestStep = countIn ? -16 : 0;
+    const totalSteps = stepsInRange(startMeasure, endMeasure, scheduledSong.meterMap);
+    const earliestStep = useCountIn ? -16 : 0;
     const boundedPosition = Math.min(totalSteps, Math.max(earliestStep, positionSteps));
     const startAt = context.currentTime + 0.03;
 
@@ -1901,24 +1982,28 @@ export function GuitarTrainer() {
       bpm: nextBpm,
       positionSteps: boundedPosition,
       scheduledAt: startAt,
+      songId: scheduledSongId,
+      trackId: scheduledTrackId,
+      capo: scheduledCapo,
+      medleyPhase: options.medleyPhase,
     };
     setPausedSession(null);
     setPlaybackProgressSteps(boundedPosition);
 
-    if (videoSync) {
+    if (videoSync && !options.medleyPhase) {
       const scorePosition = Math.max(0, boundedPosition);
-      const position = measurePosition(startMeasure, endMeasure, scorePosition, song.meterMap);
+      const position = measurePosition(startMeasure, endMeasure, scorePosition, scheduledSong.meterMap);
       const positionMeasure = position.measure;
       const stepInMeasure = position.step;
       const videoSeconds = videoTimeForPosition(
-        track.videoStartSeconds,
-        song.originalBpm,
+        scheduledTrack.videoStartSeconds,
+        scheduledSong.originalBpm,
         positionMeasure,
         stepInMeasure,
-        song.meterMap,
+        scheduledSong.meterMap,
       );
       sendVideoCommand("seekTo", [videoSeconds, true]);
-      sendVideoCommand("setPlaybackRate", [nextBpm / song.originalBpm]);
+      sendVideoCommand("setPlaybackRate", [nextBpm / scheduledSong.originalBpm]);
       if (boundedPosition < 0) {
         sendVideoCommand("pauseVideo");
         videoSyncTimerRef.current = window.setTimeout(() => sendVideoCommand("playVideo"), -boundedPosition * secondsPerStep * 1000);
@@ -1938,7 +2023,7 @@ export function GuitarTrainer() {
       ));
     }, 120);
 
-    if (countIn && boundedPosition < 0) {
+    if (useCountIn && boundedPosition < 0) {
       for (let step = -16; step < 0; step += 4) {
         if (step + 0.001 >= boundedPosition) {
           scheduleClick(context, startAt + (step - boundedPosition) * secondsPerStep, step === -16);
@@ -1948,7 +2033,7 @@ export function GuitarTrainer() {
 
     let measureOffset = 0;
     for (let measure = startMeasure; measure <= endMeasure; measure += 1) {
-      const measureSteps = stepsForMeasure(measure, song.meterMap);
+      const measureSteps = stepsForMeasure(measure, scheduledSong.meterMap);
       if (metronome) {
         for (let step = 0; step < measureSteps; step += 4) {
           const clickStep = measureOffset + step;
@@ -1958,13 +2043,14 @@ export function GuitarTrainer() {
         }
       }
 
-      scorePlaybackEvents(songId, trackId, measure).forEach((event) => {
+      scorePlaybackEvents(scheduledSongId, scheduledTrackId, measure, scheduledNoCapoLifeLead).forEach((event) => {
         const eventOffset = measureOffset + event.step;
         if (eventOffset + 0.001 < boundedPosition) return;
         schedulePluck(
           context,
           event.stringNo,
           event.fret,
+          scheduledCapo,
           startAt + (eventOffset - boundedPosition) * secondsPerStep,
           Math.max(
             0.12,
@@ -1973,8 +2059,12 @@ export function GuitarTrainer() {
         );
         if (event.noteId) {
           const timerId = window.setTimeout(() => {
-            const nextIndex = activeNotes.findIndex((candidate) => candidate.id === event.noteId);
-            if (nextIndex >= 0) moveToNoteIndex(nextIndex);
+            const nextIndex = scheduledNotes.findIndex((candidate) => candidate.id === event.noteId);
+            if (nextIndex >= 0) {
+              setNoteIndex(nextIndex);
+              setTimelineMeasure(scheduledNotes[nextIndex].measure);
+              setTimelineStep(scheduledNotes[nextIndex].tick * 2);
+            }
           }, (eventOffset - boundedPosition) * secondsPerStep * 1000);
           timerIdsRef.current.push(timerId);
         }
@@ -1986,9 +2076,9 @@ export function GuitarTrainer() {
           setTimelineMeasure(measure);
           setTimelineStep(0);
           setScorePageIndex(Math.floor((measure - 1) / 4));
-          if (videoSync) {
-            sendVideoCommand("seekTo", [videoTimeForPosition(track.videoStartSeconds, song.originalBpm, measure, 0, song.meterMap), true]);
-            sendVideoCommand("setPlaybackRate", [nextBpm / song.originalBpm]);
+          if (videoSync && !options.medleyPhase) {
+            sendVideoCommand("seekTo", [videoTimeForPosition(scheduledTrack.videoStartSeconds, scheduledSong.originalBpm, measure, 0, scheduledSong.meterMap), true]);
+            sendVideoCommand("setPlaybackRate", [nextBpm / scheduledSong.originalBpm]);
           }
         }, (measureOffset - boundedPosition) * secondsPerStep * 1000);
         timerIdsRef.current.push(measureTimer);
@@ -1996,12 +2086,12 @@ export function GuitarTrainer() {
       measureOffset += measureSteps;
     }
 
-    const currentMeasure = positionToMeasure(startMeasure, endMeasure, boundedPosition, song.meterMap);
+    const currentMeasure = positionToMeasure(startMeasure, endMeasure, boundedPosition, scheduledSong.meterMap);
     setPlaying(true);
     setPlaybackLabel(label);
     setPlaybackMeasure(currentMeasure);
     setTimelineMeasure(currentMeasure);
-    setTimelineStep(measurePosition(startMeasure, endMeasure, Math.max(0, boundedPosition), song.meterMap).step);
+    setTimelineStep(measurePosition(startMeasure, endMeasure, Math.max(0, boundedPosition), scheduledSong.meterMap).step);
     setScorePageIndex(Math.floor((currentMeasure - 1) / 4));
     const endTimer = window.setTimeout(
       () => {
@@ -2011,7 +2101,11 @@ export function GuitarTrainer() {
         }
         if (loopEnabled && playbackPreset === "loop") {
           clearPlaybackSchedule();
-          scheduleRange(startMeasure, endMeasure, label, nextBpm, 0);
+          scheduleRange(startMeasure, endMeasure, label, nextBpm, 0, options);
+          return;
+        }
+        if (options.medleyPhase === "life") {
+          startMadowMedley(nextBpm / SONGS["life-over"].originalBpm);
           return;
         }
         playbackSessionRef.current = null;
@@ -2019,6 +2113,7 @@ export function GuitarTrainer() {
         setPlaying(false);
         setPlaybackMeasure(null);
         setPlaybackLabel("");
+        if (options.medleyPhase === "madow") setMedleyPhase(null);
         sendVideoCommand("pauseVideo");
       },
       (totalSteps - boundedPosition + 0.3) * secondsPerStep * 1000,
@@ -2031,6 +2126,61 @@ export function GuitarTrainer() {
     scheduleRange(startMeasure, endMeasure, label, bpm, countIn ? -16 : 0);
   }
 
+  function setMedleySurface(nextSongId: SongId, nextTrackId: TrackId, nextBpm: number, phase: MedleyPhase) {
+    const nextSong = SONGS[nextSongId];
+    const nextTrack = trackFor(nextSong, nextTrackId);
+    setSongId(nextSongId);
+    setTrackId(nextTrackId);
+    setMedleyMode(true);
+    setMedleyPhase(phase);
+    setPlaybackPreset("medley");
+    setBpm(nextBpm);
+    setNoteIndex(0);
+    setTimelineMeasure(1);
+    setTimelineStep(0);
+    setScorePageIndex(0);
+    setVideoStart(nextTrack.videoStartSeconds);
+    setVideoAutoplay(false);
+    setVideoNonce((nonce) => nonce + 1);
+    setPitchMatched(false);
+    setDetectedCents(null);
+  }
+
+  function startMadowMedley(playbackRate: number) {
+    clearPlaybackSchedule();
+    const madowBpm = Math.max(50, Math.round(SONGS.madow.originalBpm * playbackRate));
+    setMedleySurface("madow", "backing", madowBpm, "madow");
+    scheduleRange(
+      1,
+      SONGS.madow.totalMeasures,
+      "2曲通し · 惑う星 BACKING",
+      madowBpm,
+      0,
+      { songId: "madow", trackId: "backing", capo: 0, medleyPhase: "madow", countIn: false },
+    );
+  }
+
+  function startMedley(playbackRate = bpm / song.originalBpm) {
+    stopPlayback();
+    const lifeBpm = Math.max(50, Math.round(SONGS["life-over"].originalBpm * playbackRate));
+    setMedleySurface("life-over", "lead", lifeBpm, "life");
+    scheduleRange(
+      1,
+      SONGS["life-over"].totalMeasures,
+      "2曲通し · 人生オーバー LEAD",
+      lifeBpm,
+      countIn ? -16 : 0,
+      { songId: "life-over", trackId: "lead", capo: 0, medleyPhase: "life", countIn },
+    );
+  }
+
+  function selectMedleyMode() {
+    const playbackRate = bpm / song.originalBpm;
+    stopPlayback();
+    const lifeBpm = Math.max(50, Math.round(SONGS["life-over"].originalBpm * playbackRate));
+    setMedleySurface("life-over", "lead", lifeBpm, "life");
+  }
+
   function selectPlaybackPreset(nextPreset: PlaybackPreset) {
     if (playing || pausedSession) stopPlayback();
     setPlaybackPreset(nextPreset);
@@ -2039,6 +2189,28 @@ export function GuitarTrainer() {
   function toggleSelectedPlayback() {
     if (playing) {
       pausePlayback();
+      return;
+    }
+    if (playbackPreset === "medley") {
+      if (pausedSession?.medleyPhase) {
+        setMedleySurface(pausedSession.songId, pausedSession.trackId, bpm, pausedSession.medleyPhase);
+        scheduleRange(
+          pausedSession.startMeasure,
+          pausedSession.endMeasure,
+          pausedSession.label,
+          bpm,
+          pausedSession.positionSteps,
+          {
+            songId: pausedSession.songId,
+            trackId: pausedSession.trackId,
+            capo: pausedSession.capo,
+            medleyPhase: pausedSession.medleyPhase,
+            countIn: false,
+          },
+        );
+      } else {
+        startMedley();
+      }
       return;
     }
     if (pausedSession
@@ -2050,6 +2222,13 @@ export function GuitarTrainer() {
         pausedSession.label,
         bpm,
         pausedSession.positionSteps,
+        {
+          songId: pausedSession.songId,
+          trackId: pausedSession.trackId,
+          capo: pausedSession.capo,
+          medleyPhase: pausedSession.medleyPhase,
+          countIn: false,
+        },
       );
       return;
     }
@@ -2068,7 +2247,7 @@ export function GuitarTrainer() {
   }
 
   function changeBpm(nextBpm: number) {
-    const effectiveBpm = videoSync
+    const effectiveBpm = videoSync && !medleyMode
       ? Math.round(song.originalBpm * nearestPlaybackRate(
           nextBpm / song.originalBpm,
           [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
@@ -2096,6 +2275,13 @@ export function GuitarTrainer() {
       session.label,
       effectiveBpm,
       currentPosition,
+      {
+        songId: session.songId,
+        trackId: session.trackId,
+        capo: session.capo,
+        medleyPhase: session.medleyPhase,
+        countIn: false,
+      },
     );
   }
 
@@ -2186,11 +2372,12 @@ export function GuitarTrainer() {
   }
 
   function switchSong(nextSongId: SongId) {
-    if (nextSongId === songId) return;
+    if (nextSongId === songId && !medleyMode) return;
     const nextSong = SONGS[nextSongId];
     const nextTrackId = nextSong.tracks[trackId] ? trackId : nextSong.defaultTrack;
     const nextTrack = trackFor(nextSong, nextTrackId);
     stopPlayback();
+    setMedleyMode(false);
     setSongId(nextSongId);
     setTrackId(nextTrackId);
     setNoteIndex(0);
@@ -2210,9 +2397,10 @@ export function GuitarTrainer() {
   }
 
   function switchTrack(nextTrackId: TrackId) {
-    if (nextTrackId === trackId || !song.tracks[nextTrackId]) return;
+    if ((nextTrackId === trackId && !medleyMode) || !song.tracks[nextTrackId]) return;
     const nextTrack = trackFor(song, nextTrackId);
     stopPlayback();
+    setMedleyMode(false);
     setTrackId(nextTrackId);
     setNoteIndex(0);
     setTimelineStep(0);
@@ -2229,18 +2417,22 @@ export function GuitarTrainer() {
         <div className="mx-auto max-w-[96rem] px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-baseline gap-3">
-              <h1 className="truncate text-balance text-2xl font-black sm:text-3xl">{song.title}</h1>
-              <span className="hidden text-sm font-bold text-stone-500 sm:inline">{track.label}</span>
+              <h1 className="truncate text-balance text-2xl font-black sm:text-3xl">{medleyMode ? "2曲通し" : song.title}</h1>
+              <span className="hidden text-sm font-bold text-stone-500 sm:inline">
+                {medleyMode
+                  ? medleyPhase === "madow" ? "惑う星 · バッキング" : "人生オーバー · リード"
+                  : track.label}
+              </span>
             </div>
             <p className="shrink-0 text-sm font-black text-stone-300 tabular-nums">
-              {song.originalBpm} BPM <span className="mx-2 text-stone-700">·</span> Capo {song.capo} <span className="mx-2 text-stone-700">·</span> 4/4
+              {medleyMode ? `${bpm} BPM · Capo 0` : <>{song.originalBpm} BPM <span className="mx-2 text-stone-700">·</span> Capo {song.capo} <span className="mx-2 text-stone-700">·</span> 4/4</>}
             </p>
           </div>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-2" aria-label="練習曲を選択">
+          <div className="mt-3 grid gap-2 sm:grid-cols-3" aria-label="練習曲を選択">
             {(["life-over", "madow"] as SongId[]).map((candidateId) => {
               const candidate = SONGS[candidateId];
-              const active = songId === candidateId;
+              const active = !medleyMode && songId === candidateId;
               return (
                 <button
                   aria-pressed={active}
@@ -2261,9 +2453,29 @@ export function GuitarTrainer() {
                 </button>
               );
             })}
+            <button
+              aria-pressed={medleyMode}
+              className={cn(
+                "min-h-11 rounded-xl border px-4 py-2 text-left transition-colors",
+                medleyMode
+                  ? "border-lime-300 bg-lime-300 text-lime-950"
+                  : "border-stone-700 bg-stone-950 text-stone-200 hover:border-lime-300",
+              )}
+              onClick={selectMedleyMode}
+              type="button"
+            >
+              <span className="flex items-center justify-between gap-3 font-black">
+                <span>2曲通し（カポなし）</span>
+                {medleyMode && <span className="text-xs">●</span>}
+              </span>
+            </button>
           </div>
 
-          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="ギターパートを選択">
+          {medleyMode ? (
+            <p className="mt-2 rounded-xl border border-stone-700 bg-stone-900 px-4 py-3 text-sm font-black text-stone-200">
+              人生オーバー <span className="text-lime-300">LEAD</span> → 惑う星 <span className="text-lime-300">BACKING</span>
+            </p>
+          ) : <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="ギターパートを選択">
             {(Object.entries(song.tracks) as Array<[TrackId, TrackInfo]>).map(([candidateTrackId, candidateTrack]) => {
               const active = trackId === candidateTrackId;
               return (
@@ -2286,7 +2498,7 @@ export function GuitarTrainer() {
                 </button>
               );
             })}
-          </div>
+          </div>}
         </div>
       </header>
 
@@ -2437,7 +2649,7 @@ export function GuitarTrainer() {
 
           <section className="rounded-xl border border-stone-700 bg-stone-900 p-3 sm:p-4" aria-labelledby="full-score-title">
             <div className="flex items-center justify-between gap-3">
-              <h2 id="full-score-title" className="text-balance text-xl font-black">{track.label} TAB</h2>
+              <h2 id="full-score-title" className="text-balance text-xl font-black">{noCapoLifeLead ? "リードギター（カポなし）" : track.label} TAB</h2>
               <p className="text-xs font-black text-stone-500 tabular-nums">1–{song.totalMeasures}小節</p>
             </div>
 
@@ -2543,6 +2755,7 @@ export function GuitarTrainer() {
                   songId={songId}
                   trackId={trackId}
                   measure={measure}
+                  noCapoLifeLead={noCapoLifeLead}
                   isPlaying={scoreCursor.measure === measure}
                   cursorStep={scoreCursor.measure === measure ? scoreCursor.step : null}
                   onSeek={seekToScorePosition}
@@ -2550,6 +2763,11 @@ export function GuitarTrainer() {
                 />
               ))}
             </div>
+            {noCapoLifeLead && selectedScorePage.start <= 116 && selectedScorePage.end >= 116 && (
+              <p className="mt-3 rounded-lg border border-amber-500/60 bg-amber-950/30 px-3 py-2 text-xs font-bold text-amber-200">
+                116小節の「3/AH8」は、3フレットを押さえながら8フレット位置に軽く触れる人工ハーモニクスです。この1音だけAmpero自動判定の対象外です。
+              </p>
+            )}
             <details className="mt-4 rounded-xl border border-stone-700 bg-stone-950 p-4 text-sm text-stone-300">
               <summary className="min-h-6 cursor-pointer font-black text-stone-100">TABの読み方</summary>
               <p className="mt-3 text-pretty leading-6"><strong>上が1弦、下が6弦。</strong> 数字は押さえるフレットです。<span className="font-black tabular-nums">(5)</span> や <span className="font-black tabular-nums">(10)</span> は前の音を伸ばし、もう一度ピッキングしません。<span className="font-black">×</span> はミュート、<span className="font-black">sl.</span> はスライドです。</p>
@@ -2626,7 +2844,7 @@ export function GuitarTrainer() {
                 </div>
                 <div className="rounded-xl bg-stone-800 p-4">
                   <p className="text-xs font-bold text-stone-500">実際のギター上では</p>
-                  <p className="mt-2 font-bold tabular-nums">カポ{song.capo} + TAB {currentNote.fret} = {currentNote.fret + song.capo}フレット位置</p>
+                  <p className="mt-2 font-bold tabular-nums">カポ{effectiveCapo} + TAB {currentNote.fret} = {currentNote.fret + effectiveCapo}フレット位置</p>
                 </div>
               </div>
             </div>
