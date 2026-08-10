@@ -8,7 +8,7 @@ import {
   extendDurationThroughNextMeasureTie,
   frequencyFor,
   measurePosition,
-  mergeOptionalGuitarIntoLead,
+  sustainGuitarPart,
   nearestPlaybackRate,
   normalizeLifeOverLeadEighthRun,
   playbackPositionSteps,
@@ -102,42 +102,27 @@ test("a parenthesized chorus note sustains the previous attack across the barlin
   );
 });
 
-test("optional guitar fills mute space, keeps lead attacks, and sustains through rests", () => {
-  const lead = {
-    69: [
-      { slot: 0, technique: "tie", symbols: [{ stringNo: 5, text: "(9)" }] },
-      { slot: 2, symbols: [{ stringNo: 4, text: "7" }] },
-      { slot: 6, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 4, text: "×" }] },
-      { slot: 8, symbols: [{ stringNo: 3, text: "7" }] },
-    ],
-    70: [],
-  };
-  const optional = {
+test("an independently selectable guitar part sustains notes through empty space", () => {
+  const part = {
     69: [
       { slot: 0, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 5, text: "×" }] },
       { slot: 2, symbols: [{ stringNo: 3, text: "9" }, { stringNo: 5, text: "7" }] },
       { slot: 4, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 5, text: "×" }] },
       { slot: 6, symbols: [{ stringNo: 3, text: "7" }, { stringNo: 5, text: "5" }] },
     ],
-    70: [
-      { slot: 0, symbols: [{ stringNo: 2, text: "×" }, { stringNo: 4, text: "×" }] },
-      { slot: 2, symbols: [{ stringNo: 2, text: "12" }, { stringNo: 4, text: "9" }] },
-    ],
+    70: [],
   };
 
-  const merged = mergeOptionalGuitarIntoLead(lead, optional, 69, 70);
-  assert.deepEqual(merged[69].find((glyph) => glyph.slot === 0), lead[69][0]);
-  assert.deepEqual(merged[69].find((glyph) => glyph.slot === 2), lead[69][1]);
-  assert.deepEqual(merged[69].find((glyph) => glyph.slot === 6).symbols, [
-    { stringNo: 3, text: "7", durationSlots: 2 },
+  const sustained = sustainGuitarPart(part, 69, 70);
+  assert.deepEqual(sustained[69].find((glyph) => glyph.slot === 6).symbols, [
+    { stringNo: 3, text: "7", durationSlots: 10 },
     { stringNo: 5, text: "5", durationSlots: 10 },
   ]);
-  assert.equal(merged[69].some((glyph) => glyph.symbols.some((symbol) => symbol.text === "×")), false);
+  assert.equal(sustained[69].some((glyph) => glyph.symbols.some((symbol) => symbol.text === "×")), true);
 });
 
-test("optional guitar ties sustain across the barline without a second attack", () => {
-  const merged = mergeOptionalGuitarIntoLead(
-    { 74: [], 75: [] },
+test("an independently selectable guitar part honors a written tie across the barline", () => {
+  const sustained = sustainGuitarPart(
     {
       74: [{ slot: 14, symbols: [{ stringNo: 1, text: "12" }] }],
       75: [
@@ -148,9 +133,9 @@ test("optional guitar ties sustain across the barline without a second attack", 
     74,
     75,
   );
-  assert.deepEqual(merged[74][0].symbols, [{ stringNo: 1, text: "12", durationSlots: 4 }]);
-  assert.equal(merged[75].some((glyph) => glyph.technique === "tie"), false);
-  assert.deepEqual(merged[75][0].symbols, [{ stringNo: 1, text: "14", durationSlots: 14 }]);
+  assert.deepEqual(sustained[74][0].symbols, [{ stringNo: 1, text: "12", durationSlots: 4 }]);
+  assert.equal(sustained[75][0].technique, "tie");
+  assert.deepEqual(sustained[75][1].symbols, [{ stringNo: 1, text: "14", durationSlots: 14 }]);
 });
 
 test("YouTube playback rate snaps to a rate the player actually supports", () => {

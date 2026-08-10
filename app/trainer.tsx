@@ -10,7 +10,7 @@ import {
   frequencyFor,
   nearestPlaybackRate,
   measurePosition,
-  mergeOptionalGuitarIntoLead,
+  sustainGuitarPart,
   playbackPositionSteps,
   normalizeLifeOverLeadEighthRun,
   positionToMeasure,
@@ -399,6 +399,7 @@ const TECHNIQUE_TAB_GLYPHS: Record<number, ScoreGlyph[]> = {
 
 type SongId = "life-over" | "madow";
 type TrackId = "lead" | "backing" | "third";
+type LifeLeadSectionMode = "original" | "middle";
 
 type TrackInfo = {
   label: string;
@@ -798,6 +799,7 @@ type PlaybackSession = {
   songId: SongId;
   trackId: TrackId;
   capo: number;
+  lifeLeadSectionMode: LifeLeadSectionMode;
   medleyPhase?: MedleyPhase;
 };
 
@@ -849,16 +851,18 @@ function auditedGlyphRecord(songId: SongId, trackId: TrackId) {
   })) as Record<number, ScoreGlyph[]>;
 }
 
+const LIFE_OVER_ORIGINAL_LEAD_GLYPHS = auditedGlyphRecord("life-over", "lead");
+const LIFE_OVER_MIDDLE_GLYPHS = sustainGuitarPart(
+  auditedGlyphRecord("life-over", "third"),
+  66,
+  81,
+) as Record<number, ScoreGlyph[]>;
+
 const AUDITED_GLYPHS: Record<SongId, Partial<Record<TrackId, Record<number, ScoreGlyph[]>>>> = {
   "life-over": {
-    lead: mergeOptionalGuitarIntoLead(
-      auditedGlyphRecord("life-over", "lead"),
-      auditedGlyphRecord("life-over", "third"),
-      66,
-      81,
-    ),
+    lead: LIFE_OVER_ORIGINAL_LEAD_GLYPHS,
     backing: auditedGlyphRecord("life-over", "backing"),
-    third: auditedGlyphRecord("life-over", "third"),
+    third: LIFE_OVER_MIDDLE_GLYPHS,
   },
   madow: {
     lead: auditedGlyphRecord("madow", "lead"),
@@ -897,16 +901,66 @@ const LIFE_NO_CAPO_LEAD_GLYPHS = Object.fromEntries(
   ]),
 ) as Record<number, ScoreGlyph[]>;
 
-const LIFE_NO_CAPO_LEAD_NOTES = notesFromGlyphs(LIFE_NO_CAPO_LEAD_GLYPHS, "life-lead-no-capo");
+const LIFE_NO_CAPO_MIDDLE_GLYPHS = Object.fromEntries(
+  Object.entries(LIFE_OVER_MIDDLE_GLYPHS).map(([measure, glyphs]) => [
+    Number(measure),
+    glyphs.map((glyph) => ({
+      ...glyph,
+      symbols: glyph.symbols.map((symbol) => ({
+        ...symbol,
+        text: transposeLifeLeadSymbolForNoCapo(symbol.text),
+      })),
+    })),
+  ]),
+) as Record<number, ScoreGlyph[]>;
 
-function glyphsForTrack(songId: SongId, trackId: TrackId, measure: number, noCapoLifeLead = false) {
+const LIFE_MIDDLE_SECTION_GLYPHS = {
+  ...LIFE_OVER_ORIGINAL_LEAD_GLYPHS,
+  ...Object.fromEntries(Array.from({ length: 16 }, (_, index) => {
+    const measure = 66 + index;
+    return [measure, LIFE_OVER_MIDDLE_GLYPHS[measure] ?? []];
+  })),
+} as Record<number, ScoreGlyph[]>;
+
+const LIFE_NO_CAPO_MIDDLE_SECTION_GLYPHS = {
+  ...LIFE_NO_CAPO_LEAD_GLYPHS,
+  ...Object.fromEntries(Array.from({ length: 16 }, (_, index) => {
+    const measure = 66 + index;
+    return [measure, LIFE_NO_CAPO_MIDDLE_GLYPHS[measure] ?? []];
+  })),
+} as Record<number, ScoreGlyph[]>;
+
+const LIFE_NO_CAPO_LEAD_NOTES = notesFromGlyphs(LIFE_NO_CAPO_LEAD_GLYPHS, "life-lead-no-capo");
+const LIFE_MIDDLE_SECTION_NOTES = notesFromGlyphs(LIFE_MIDDLE_SECTION_GLYPHS, "life-middle-section");
+const LIFE_NO_CAPO_MIDDLE_SECTION_NOTES = notesFromGlyphs(LIFE_NO_CAPO_MIDDLE_SECTION_GLYPHS, "life-middle-section-no-capo");
+
+function glyphsForTrack(
+  songId: SongId,
+  trackId: TrackId,
+  measure: number,
+  noCapoLifeLead = false,
+  lifeLeadSectionMode: LifeLeadSectionMode = "original",
+) {
+  if (songId === "life-over" && trackId === "lead" && lifeLeadSectionMode === "middle" && measure >= 66 && measure <= 81) {
+    return noCapoLifeLead
+      ? LIFE_NO_CAPO_MIDDLE_GLYPHS[measure] ?? []
+      : LIFE_OVER_MIDDLE_GLYPHS[measure] ?? [];
+  }
   if (noCapoLifeLead && songId === "life-over" && trackId === "lead") {
     return LIFE_NO_CAPO_LEAD_GLYPHS[measure] ?? [];
   }
   return AUDITED_GLYPHS[songId]?.[trackId]?.[measure] ?? [];
 }
 
-function notesForTrack(songId: SongId, trackId: TrackId, noCapoLifeLead = false) {
+function notesForTrack(
+  songId: SongId,
+  trackId: TrackId,
+  noCapoLifeLead = false,
+  lifeLeadSectionMode: LifeLeadSectionMode = "original",
+) {
+  if (songId === "life-over" && trackId === "lead" && lifeLeadSectionMode === "middle") {
+    return noCapoLifeLead ? LIFE_NO_CAPO_MIDDLE_SECTION_NOTES : LIFE_MIDDLE_SECTION_NOTES;
+  }
   if (noCapoLifeLead && songId === "life-over" && trackId === "lead") {
     return LIFE_NO_CAPO_LEAD_NOTES;
   }
@@ -932,8 +986,14 @@ function scoreAuditStatus(songId: SongId, trackId: TrackId, measure: number) {
     : { label: "原動画上で休み", tone: "rest" as const };
 }
 
-function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number, noCapoLifeLead = false): PlaybackEvent[] {
-  const glyphs = glyphsForTrack(songId, trackId, measure, noCapoLifeLead);
+function scorePlaybackEvents(
+  songId: SongId,
+  trackId: TrackId,
+  measure: number,
+  noCapoLifeLead = false,
+  lifeLeadSectionMode: LifeLeadSectionMode = "original",
+): PlaybackEvent[] {
+  const glyphs = glyphsForTrack(songId, trackId, measure, noCapoLifeLead, lifeLeadSectionMode);
   if (glyphs) {
     const measureSteps = stepsForMeasure(measure, SONGS[songId].meterMap);
     const baseEvents = glyphs.flatMap((glyph) => {
@@ -955,7 +1015,7 @@ function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number, 
       });
     });
     const nextMeasure = measure + 1;
-    const nextGlyphs = glyphsForTrack(songId, trackId, nextMeasure, noCapoLifeLead);
+    const nextGlyphs = glyphsForTrack(songId, trackId, nextMeasure, noCapoLifeLead, lifeLeadSectionMode);
     const nextMeasureSteps = stepsForMeasure(nextMeasure, SONGS[songId].meterMap);
     return baseEvents.map((event) => {
       const hasLaterMatchingAttack = baseEvents.some((candidate) => (
@@ -1262,6 +1322,7 @@ function ScoreMeasure({
   trackId,
   measure,
   noCapoLifeLead,
+  lifeLeadSectionMode,
   isPlaying,
   cursorStep,
   onSeek,
@@ -1270,14 +1331,21 @@ function ScoreMeasure({
   trackId: TrackId;
   measure: number;
   noCapoLifeLead: boolean;
+  lifeLeadSectionMode: LifeLeadSectionMode;
   isPlaying: boolean;
   cursorStep: number | null;
   onSeek: (measure: number, step: number) => void;
 }) {
-  const proceduralGlyphs = glyphsForTrack(songId, trackId, measure, noCapoLifeLead);
+  const usesMiddleStaff = songId === "life-over"
+    && trackId === "lead"
+    && lifeLeadSectionMode === "middle"
+    && measure >= 66
+    && measure <= 81;
+  const proceduralGlyphs = glyphsForTrack(songId, trackId, measure, noCapoLifeLead, lifeLeadSectionMode);
   const proceduralLabel = noCapoLifeLead
-    ? "LEAD · CAPO 0"
-    : trackId === "lead" ? "LEAD GUITAR" : trackId === "backing" ? "BACKING GUITAR" : "GUITAR 3";
+    ? usesMiddleStaff ? "LEAD · 中央段 · CAPO 0" : "LEAD · CAPO 0"
+    : usesMiddleStaff ? "LEAD · 中央段"
+    : trackId === "backing" ? "BACKING GUITAR" : "LEAD GUITAR";
   const score = <ProceduralTabMeasure
     measure={measure}
     glyphs={proceduralGlyphs}
@@ -1345,6 +1413,7 @@ function TechniqueGuideCard({
 export function GuitarTrainer() {
   const [songId, setSongId] = useState<SongId>("life-over");
   const [trackId, setTrackId] = useState<TrackId>("lead");
+  const [lifeLeadSectionMode, setLifeLeadSectionMode] = useState<LifeLeadSectionMode>("original");
   const [medleyMode, setMedleyMode] = useState(false);
   const [medleyPhase, setMedleyPhase] = useState<MedleyPhase | null>(null);
   const [noteIndex, setNoteIndex] = useState(0);
@@ -1404,6 +1473,7 @@ export function GuitarTrainer() {
         const saved = JSON.parse(raw) as {
           songId?: SongId;
           trackId?: TrackId;
+          lifeLeadSectionMode?: LifeLeadSectionMode;
           bpm?: number;
           timelineMeasure?: number;
           timelineStep?: number;
@@ -1422,6 +1492,9 @@ export function GuitarTrainer() {
           if (saved.songId && SONGS[saved.songId]) setSongId(saved.songId);
           if (saved.trackId === "third") setTrackId("lead");
           else if (saved.trackId === "lead" || saved.trackId === "backing") setTrackId(saved.trackId);
+          if (saved.lifeLeadSectionMode === "original" || saved.lifeLeadSectionMode === "middle") {
+            setLifeLeadSectionMode(saved.lifeLeadSectionMode);
+          }
           if (typeof saved.bpm === "number") setBpm(saved.bpm);
           if (typeof saved.timelineMeasure === "number") {
             restoredMeasureRef.current = saved.timelineMeasure;
@@ -1454,6 +1527,7 @@ export function GuitarTrainer() {
     window.localStorage.setItem("fret-step-trainer:v2", JSON.stringify({
       songId,
       trackId,
+      lifeLeadSectionMode,
       bpm,
       timelineMeasure,
       timelineStep,
@@ -1468,14 +1542,14 @@ export function GuitarTrainer() {
       loopEnabled,
       auditNotes,
     }));
-  }, [auditNotes, bpm, countIn, inputSensitivity, learnedIds, loopEnabled, loopEnd, loopStart, metronome, songId, timelineMeasure, timelineStep, trackId, tunerString, videoSync]);
+  }, [auditNotes, bpm, countIn, inputSensitivity, learnedIds, lifeLeadSectionMode, loopEnabled, loopEnd, loopStart, metronome, songId, timelineMeasure, timelineStep, trackId, tunerString, videoSync]);
 
   const song = SONGS[songId];
   const effectiveTrackId = song.tracks[trackId] ? trackId : song.defaultTrack;
   const track = trackFor(song, effectiveTrackId);
   const noCapoLifeLead = medleyMode && songId === "life-over" && effectiveTrackId === "lead";
   const effectiveCapo = noCapoLifeLead ? 0 : song.capo;
-  const activeNotes = notesForTrack(songId, effectiveTrackId, noCapoLifeLead);
+  const activeNotes = notesForTrack(songId, effectiveTrackId, noCapoLifeLead, lifeLeadSectionMode);
   const activeScorePages = scorePages(song.totalMeasures);
 
   useEffect(() => {
@@ -1958,6 +2032,7 @@ export function GuitarTrainer() {
       songId?: SongId;
       trackId?: TrackId;
       capo?: number;
+      lifeLeadSectionMode?: LifeLeadSectionMode;
       medleyPhase?: MedleyPhase;
       countIn?: boolean;
     } = {},
@@ -1970,7 +2045,13 @@ export function GuitarTrainer() {
     const scheduledNoCapoLifeLead = scheduledSongId === "life-over"
       && scheduledTrackId === "lead"
       && scheduledCapo === 0;
-    const scheduledNotes = notesForTrack(scheduledSongId, scheduledTrackId, scheduledNoCapoLifeLead);
+    const scheduledLifeLeadSectionMode = options.lifeLeadSectionMode ?? lifeLeadSectionMode;
+    const scheduledNotes = notesForTrack(
+      scheduledSongId,
+      scheduledTrackId,
+      scheduledNoCapoLifeLead,
+      scheduledLifeLeadSectionMode,
+    );
     const useCountIn = options.countIn ?? countIn;
     const context = getAudioContext();
     void context.resume();
@@ -1990,6 +2071,7 @@ export function GuitarTrainer() {
       songId: scheduledSongId,
       trackId: scheduledTrackId,
       capo: scheduledCapo,
+      lifeLeadSectionMode: scheduledLifeLeadSectionMode,
       medleyPhase: options.medleyPhase,
     };
     setPausedSession(null);
@@ -2048,7 +2130,13 @@ export function GuitarTrainer() {
         }
       }
 
-      scorePlaybackEvents(scheduledSongId, scheduledTrackId, measure, scheduledNoCapoLifeLead).forEach((event) => {
+      scorePlaybackEvents(
+        scheduledSongId,
+        scheduledTrackId,
+        measure,
+        scheduledNoCapoLifeLead,
+        scheduledLifeLeadSectionMode,
+      ).forEach((event) => {
         const eventOffset = measureOffset + event.step;
         if (eventOffset + 0.001 < boundedPosition) return;
         schedulePluck(
@@ -2175,7 +2263,7 @@ export function GuitarTrainer() {
       "2曲通し · 人生オーバー LEAD",
       lifeBpm,
       countIn ? -16 : 0,
-      { songId: "life-over", trackId: "lead", capo: 0, medleyPhase: "life", countIn },
+      { songId: "life-over", trackId: "lead", capo: 0, lifeLeadSectionMode, medleyPhase: "life", countIn },
     );
   }
 
@@ -2205,6 +2293,7 @@ export function GuitarTrainer() {
         songId: session.songId,
         trackId: session.trackId,
         capo: session.capo,
+        lifeLeadSectionMode: session.lifeLeadSectionMode,
         medleyPhase: session.medleyPhase,
         countIn: false,
       },
@@ -2237,6 +2326,7 @@ export function GuitarTrainer() {
         songId,
         trackId: effectiveTrackId,
         capo: effectiveCapo,
+        lifeLeadSectionMode,
         medleyPhase: currentMedleyPhase,
         countIn: false,
       },
@@ -2309,6 +2399,7 @@ export function GuitarTrainer() {
         songId: session.songId,
         trackId: session.trackId,
         capo: session.capo,
+        lifeLeadSectionMode: session.lifeLeadSectionMode,
         medleyPhase: session.medleyPhase,
         countIn: false,
       },
@@ -2439,6 +2530,17 @@ export function GuitarTrainer() {
     setVideoStart(videoTimeForMeasure(song, nextTrack, timelineMeasure));
     setVideoAutoplay(false);
     setVideoNonce((nonce) => nonce + 1);
+  }
+
+  function switchLifeLeadSection(nextMode: LifeLeadSectionMode) {
+    if (nextMode === lifeLeadSectionMode) return;
+    stopPlayback();
+    const nextNotes = notesForTrack(songId, effectiveTrackId, noCapoLifeLead, nextMode);
+    const nextIndex = nextNotes.findIndex((note) => note.measure >= timelineMeasure);
+    setLifeLeadSectionMode(nextMode);
+    setNoteIndex(nextIndex >= 0 ? nextIndex : Math.max(0, nextNotes.length - 1));
+    setPitchMatched(false);
+    setDetectedCents(null);
   }
 
   return (
@@ -2788,6 +2890,28 @@ export function GuitarTrainer() {
               </details>
             </div>
 
+            {songId === "life-over"
+              && effectiveTrackId === "lead"
+              && selectedScorePage.start <= 81
+              && selectedScorePage.end >= 66
+              && <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-stone-700 bg-stone-900 p-2" aria-label="66〜81小節のリードを選択">
+                <span className="px-2 text-xs font-black text-stone-300">66〜81小節だけ</span>
+                <div className="grid grid-cols-2 gap-1 rounded-lg bg-stone-950 p-1">
+                  {(["original", "middle"] as LifeLeadSectionMode[]).map((mode) => (
+                    <button
+                      aria-pressed={lifeLeadSectionMode === mode}
+                      className="min-h-9 rounded-md px-3 text-xs font-black text-stone-300 data-[active=true]:bg-lime-300 data-[active=true]:text-lime-950"
+                      data-active={lifeLeadSectionMode === mode}
+                      key={mode}
+                      onClick={() => switchLifeLeadSection(mode)}
+                      type="button"
+                    >
+                      {mode === "original" ? "元リード" : "中央段"}
+                    </button>
+                  ))}
+                </div>
+              </div>}
+
             <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <button className="min-h-11 rounded-xl border border-stone-700 bg-stone-950 px-4 text-sm font-bold disabled:opacity-40" disabled={scorePageIndex === 0} onClick={() => jumpScoreTo(activeScorePages[Math.max(0, scorePageIndex - 1)].start)} type="button">← 前の4小節</button>
               <p className="px-2 text-center text-sm font-black tabular-nums">{selectedScorePage.start}–{selectedScorePage.end}</p>
@@ -2801,6 +2925,7 @@ export function GuitarTrainer() {
                   trackId={trackId}
                   measure={measure}
                   noCapoLifeLead={noCapoLifeLead}
+                  lifeLeadSectionMode={lifeLeadSectionMode}
                   isPlaying={scoreCursor.measure === measure}
                   cursorStep={scoreCursor.measure === measure ? scoreCursor.step : null}
                   onSeek={seekToScorePosition}
