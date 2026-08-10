@@ -266,6 +266,9 @@ test("keeps the video-audited lead strings and the single live monitor", async (
     { stringNo: 3, text: "9" },
     { stringNo: 3, text: "7" },
   ]);
+  assert.deepEqual(tabData["life-over"].lead["94"].map((glyph) => glyph.slot), [
+    0, 2, 4, 6, 8, 10, 12, 14,
+  ]);
   assert.deepEqual(tabData["life-over"].lead["114"][0].symbols, [
     { stringNo: 2, text: "14" },
     { stringNo: 4, text: "11" },

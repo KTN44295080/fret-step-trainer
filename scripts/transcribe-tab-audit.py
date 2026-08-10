@@ -1015,6 +1015,19 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
         glyph(14, (3, "7")),
     ]
 
+    # Measure 94 is the same straight eighth-note run used throughout the
+    # chorus. OCR pushed its final two notes one sixteenth late.
+    lead["94"] = [
+        glyph(0, (3, "12")),
+        glyph(2, (2, "10")),
+        glyph(4, (2, "13")),
+        glyph(6, (2, "10")),
+        glyph(8, (3, "12")),
+        glyph(10, (3, "10")),
+        glyph(12, (4, "12")),
+        glyph(14, (2, "10")),
+    ]
+
     # Final special figures and outro, checked directly against measures
     # 111-151 in the source video.
     if lead["111"]:  # type: ignore[index]
