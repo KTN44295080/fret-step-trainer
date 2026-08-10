@@ -10,6 +10,7 @@ import {
   frequencyFor,
   nearestPlaybackRate,
   measurePosition,
+  mergeOptionalGuitarIntoLead,
   playbackPositionSteps,
   normalizeLifeOverLeadEighthRun,
   positionToMeasure,
@@ -33,7 +34,7 @@ type TabEvent = {
 
 type ScoreGlyph = {
   slot: number;
-  symbols: Array<{ stringNo: StringNumber; text: string }>;
+  symbols: Array<{ stringNo: StringNumber; text: string; durationSlots?: number }>;
   technique?: "sl." | "H" | "full" | "harm." | "tie";
 };
 
@@ -719,7 +720,7 @@ const SONGS: Record<SongId, SongDefinition> = {
         videoId: "6LfUfHSIiMw",
         videoStartSeconds: 215,
         videoStartLabel: "TAB 3:35",
-        description: "貼ってもらったTABを1つのデータ譜に統合。6本の線・数字・拍・奏法記号を描画し、同じデータを連続再生にも使います。",
+        description: "貼ってもらったTABを1つのデータ譜に統合。66〜81小節は、元のリードを優先し、中央段の両立できる音を同じTABへ混ぜています。",
       },
       backing: {
         label: "バッキングギター",
@@ -727,15 +728,7 @@ const SONGS: Record<SongId, SongDefinition> = {
         videoId: "6LfUfHSIiMw",
         videoStartSeconds: 215,
         videoStartLabel: "TAB 3:35",
-        description: "同じ動画の上段を区間ごとに照合した練習用バッキングTAB。小節位置はリードと共通なので、切り替えても同じ位置を保ちます。",
-      },
-      third: {
-        label: "追加ギター（中央段）",
-        badge: "GUITAR 3",
-        videoId: "6LfUfHSIiMw",
-        videoStartSeconds: 215,
-        videoStartLabel: "TAB 3:35",
-        description: "原動画の中央段に譜面が現れる区間だけを抽出した第3ギターTAB。空の小節は休みとしてそのまま残します。",
+        description: "原動画の上段を区間ごとに照合したバッキングTAB。小節位置はリードと共通です。",
       },
     },
   },
@@ -858,7 +851,12 @@ function auditedGlyphRecord(songId: SongId, trackId: TrackId) {
 
 const AUDITED_GLYPHS: Record<SongId, Partial<Record<TrackId, Record<number, ScoreGlyph[]>>>> = {
   "life-over": {
-    lead: auditedGlyphRecord("life-over", "lead"),
+    lead: mergeOptionalGuitarIntoLead(
+      auditedGlyphRecord("life-over", "lead"),
+      auditedGlyphRecord("life-over", "third"),
+      66,
+      81,
+    ),
     backing: auditedGlyphRecord("life-over", "backing"),
     third: auditedGlyphRecord("life-over", "third"),
   },
@@ -949,7 +947,10 @@ function scorePlaybackEvents(songId: SongId, trackId: TrackId, measure: number, 
               step: Math.round((glyph.slot / 16) * measureSteps),
               stringNo: symbol.stringNo,
               fret,
-              durationSteps: 2,
+              durationSteps: Math.max(
+                2,
+                Math.round(((symbol.durationSlots ?? 2) / 16) * measureSteps),
+              ),
             }];
       });
     });
@@ -1419,7 +1420,8 @@ export function GuitarTrainer() {
         };
         window.queueMicrotask(() => {
           if (saved.songId && SONGS[saved.songId]) setSongId(saved.songId);
-          if (saved.trackId === "lead" || saved.trackId === "backing" || saved.trackId === "third") setTrackId(saved.trackId);
+          if (saved.trackId === "third") setTrackId("lead");
+          else if (saved.trackId === "lead" || saved.trackId === "backing") setTrackId(saved.trackId);
           if (typeof saved.bpm === "number") setBpm(saved.bpm);
           if (typeof saved.timelineMeasure === "number") {
             restoredMeasureRef.current = saved.timelineMeasure;

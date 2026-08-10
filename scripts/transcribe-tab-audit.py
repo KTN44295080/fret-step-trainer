@@ -881,6 +881,7 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
     life = data["life-over"]  # type: ignore[index]
     lead = life["lead"]  # type: ignore[index]
     backing = life["backing"]  # type: ignore[index]
+    third = life["third"]  # type: ignore[index]
 
     # The narrow quarter-rest and note-stem shapes were the two recurring OCR
     # failures in the lead track.  The native 1920x1080 source frames confirm
@@ -1013,6 +1014,69 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
         glyph(9, (2, "7")),
         glyph(12, (3, "9")),
         glyph(14, (3, "7")),
+    ]
+
+    # The middle staff only exists in measures 66-81. It is assigned to the
+    # lead player in the two-guitar arrangement, so keep its source data exact
+    # before the UI folds compatible notes into that playable part. OCR commonly read
+    # muted crosses as a CJK glyph and narrow rests as fret 1.
+    middle_full = [
+        glyph(0, (2, "×"), (4, "×")),
+        glyph(2, (2, "12"), (4, "9")),
+        glyph(4, (2, "×"), (4, "×")),
+        glyph(6, (2, "10"), (4, "7")),
+        glyph(8, (2, "×"), (4, "×")),
+        glyph(10, (2, "7"), (4, "4")),
+        glyph(12, (2, "8"), (4, "5")),
+        glyph(14, (2, "10"), (4, "7")),
+    ]
+    middle_short_high = [
+        glyph(0, (1, "×"), (3, "×")),
+        glyph(2, (1, "12"), (3, "9")),
+        glyph(4, (1, "×"), (3, "×")),
+        glyph(6, (1, "10"), (3, "7")),
+    ]
+    middle_short_low = [
+        glyph(0, (3, "×"), (5, "×")),
+        glyph(2, (3, "9"), (5, "7")),
+        glyph(4, (3, "×"), (5, "×")),
+        glyph(6, (3, "7"), (5, "5")),
+    ]
+    for measure in ("66", "68", "70", "72"):
+        third[measure] = middle_full
+    for measure in ("67", "71", "73"):
+        third[measure] = middle_short_high
+    third["69"] = middle_short_low
+
+    middle_melody_a = [
+        glyph(0, (1, "10")),
+        glyph(4, (1, "12")),
+        glyph(8, (1, "14")),
+        glyph(12, (1, "10")),
+        glyph(14, (1, "12")),
+    ]
+    middle_melody_b = [
+        glyph(0, (1, "(12)"), technique="tie"),
+        glyph(2, (1, "14")),
+        glyph(8, (1, "12")),
+        glyph(10, (1, "14")),
+        glyph(12, (1, "10")),
+    ]
+    for measure in ("74", "76", "78"):
+        third[measure] = middle_melody_a
+    for measure in ("75", "77", "79"):
+        third[measure] = middle_melody_b
+    third["80"] = [
+        glyph(0, (1, "10")),
+        glyph(4, (1, "12")),
+        glyph(8, (1, "14")),
+    ]
+    third["81"] = [
+        glyph(0, (1, "10")),
+        glyph(2, (1, "10")),
+        glyph(4, (1, "10")),
+        glyph(6, (1, "12")),
+        glyph(8, (1, "10")),
     ]
 
     # Measure 87 starts with the tied continuation of measure 86. OCR dropped

@@ -66,7 +66,7 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /aria-label="表示4小節 1〜4を再生"/);
   assert.match(html, /譜面を見ながら判定/);
   assert.match(html, /正解で曲を進める/);
-  assert.match(html, /追加ギター（中央段）/);
+  assert.doesNotMatch(html, /追加ギター（中央段）|GUITAR 3/);
   assert.doesNotMatch(html, /原動画フレーム読取|高解像度OCR転記|譜面の監査・訂正メモ/);
   assert.match(html, /原曲動画/);
   assert.match(html, /A\/B・動画同期/);
@@ -114,6 +114,12 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   assert.match(trainer, /tabAuditData/);
   assert.match(trainer, /AUDITED_TAB_DATA/);
   assert.match(trainer, /auditedGlyphRecord\("life-over", "third"\)/);
+  assert.match(trainerCore, /export function mergeOptionalGuitarIntoLead/);
+  assert.match(trainerCore, /The original lead wins every/);
+  assert.match(trainerCore, /durationSlots: Math\.max\(2, endSlot - absoluteSlot\)/);
+  assert.match(trainer, /symbol\.durationSlots \?\? 2/);
+  assert.match(trainer, /mergeOptionalGuitarIntoLead\([\s\S]*auditedGlyphRecord\("life-over", "lead"\),[\s\S]*auditedGlyphRecord\("life-over", "third"\),[\s\S]*66,[\s\S]*81/);
+  assert.match(trainer, /saved\.trackId === "third"\) setTrackId\("lead"\)/);
   assert.match(trainer, /function switchSong/);
   assert.match(trainer, /function switchTrack/);
   assert.match(trainer, /function startMedley/);
@@ -281,6 +287,29 @@ test("keeps the video-audited lead strings and the single live monitor", async (
   assert.deepEqual(tabData["life-over"].lead["94"].map((glyph) => glyph.slot), [
     0, 2, 4, 6, 8, 10, 12, 14,
   ]);
+  assert.deepEqual(tabData["life-over"].lead["116"], [
+    {
+      slot: 9,
+      symbols: [
+        { stringNo: 2, text: "<5>" },
+        { stringNo: 3, text: "<5>" },
+        { stringNo: 4, text: "<5>" },
+        { stringNo: 5, text: "<5>" },
+      ],
+      technique: "harm.",
+    },
+  ]);
+  assert.deepEqual(tabData["life-over"].third["69"], [
+    { slot: 0, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 5, text: "×" }] },
+    { slot: 2, symbols: [{ stringNo: 3, text: "9" }, { stringNo: 5, text: "7" }] },
+    { slot: 4, symbols: [{ stringNo: 3, text: "×" }, { stringNo: 5, text: "×" }] },
+    { slot: 6, symbols: [{ stringNo: 3, text: "7" }, { stringNo: 5, text: "5" }] },
+  ]);
+  assert.deepEqual(tabData["life-over"].third["75"][0], {
+    slot: 0,
+    symbols: [{ stringNo: 1, text: "(12)" }],
+    technique: "tie",
+  });
   assert.deepEqual(tabData["life-over"].lead["114"][0].symbols, [
     { stringNo: 2, text: "14" },
     { stringNo: 4, text: "11" },

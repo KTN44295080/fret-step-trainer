@@ -80,6 +80,119 @@ export function normalizeLifeOverLeadEighthRun(glyphs) {
   return glyphs.map((glyph, index) => ({ ...glyph, slot: chorusSlots[index] }));
 }
 
+function tabFret(text) {
+  if (text.includes("×") || text.includes("AH")) return null;
+  const numeric = text.match(/\d+/);
+  if (!numeric || Number(numeric[0]) > 24) return null;
+  return Number(numeric[0]);
+}
+
+function numericTabSymbol(text) {
+  return tabFret(text) !== null;
+}
+
+function leadArticulationOnString(glyph, stringNo) {
+  return glyph.symbols.some((symbol) => (
+    symbol.stringNo === stringNo
+    && (numericTabSymbol(symbol.text) || symbol.text.includes("×"))
+  ));
+}
+
+/**
+ * Folds an optional, source-authored guitar staff into the lead part without
+ * turning it into a three-hand transcription. The original lead wins every
+ * simultaneous attack. Optional pitched notes may fill silence or replace a
+ * mute-only attack, while optional mute-only strokes are omitted. Added notes
+ * ring through empty space until the next optional attack or the next lead
+ * articulation on the same string, including across a barline.
+ */
+export function mergeOptionalGuitarIntoLead(
+  lead,
+  optional,
+  firstMeasure,
+  lastMeasure,
+) {
+  const merged = { ...lead };
+  const combinedByMeasure = {};
+  const selected = [];
+
+  for (let measure = firstMeasure; measure <= lastMeasure; measure += 1) {
+    const combined = (lead[measure] ?? []).map((glyph) => ({
+      ...glyph,
+      symbols: glyph.symbols.map((symbol) => ({ ...symbol })),
+    }));
+    combinedByMeasure[measure] = combined;
+
+    for (const optionalGlyph of optional[measure] ?? []) {
+      // A tie is continuation information, not another pick attack. Its source
+      // note is sustained by the cross-measure duration calculation below.
+      if (optionalGlyph.technique === "tie") continue;
+      const pitchedSymbols = optionalGlyph.symbols
+        .filter((symbol) => numericTabSymbol(symbol.text))
+        .map((symbol) => ({ ...symbol }));
+      if (pitchedSymbols.length === 0) continue;
+
+      const existingIndex = combined.findIndex((glyph) => glyph.slot === optionalGlyph.slot);
+      const existing = combined[existingIndex];
+      if (existing) {
+        // Parenthesized lead ties still occupy the musical slot even though
+        // they are not a new attack; do not cover them with the optional part.
+        if (existing.symbols.some((symbol) => numericTabSymbol(symbol.text))) continue;
+        // The optional pitched note is more useful than a mute-only placeholder
+        // at the same instant, so replace that one glyph rather than stacking.
+        combined.splice(existingIndex, 1);
+      }
+
+      const glyph = { ...optionalGlyph, symbols: pitchedSymbols };
+      selected.push({ measure, glyph });
+    }
+  }
+
+  selected.forEach((entry, index) => {
+    const absoluteSlot = entry.measure * 16 + entry.glyph.slot;
+    const nextOptional = selected[index + 1];
+    const nextOptionalSlot = nextOptional
+      ? nextOptional.measure * 16 + nextOptional.glyph.slot
+      : (lastMeasure + 1) * 16;
+    const symbols = entry.glyph.symbols.map((symbol) => {
+      const sourceFret = tabFret(symbol.text);
+      const matchingNextMeasureTie = (optional[entry.measure + 1] ?? []).some((glyph) => (
+        glyph.technique === "tie"
+        && glyph.symbols.some((candidate) => (
+          candidate.stringNo === symbol.stringNo
+          && tabFret(candidate.text) === sourceFret
+        ))
+      ));
+      // Do not let a decorative harmony ring into a new backing chord unless
+      // the source score explicitly ties it over the barline.
+      const phraseBoundary = matchingNextMeasureTie
+        ? Math.min(nextOptionalSlot, (entry.measure + 2) * 16)
+        : Math.min(nextOptionalSlot, (entry.measure + 1) * 16);
+      let nextLeadConflict;
+      for (let measure = entry.measure; measure <= lastMeasure; measure += 1) {
+        const conflict = (combinedByMeasure[measure] ?? [])
+          .filter((glyph) => measure > entry.measure || glyph.slot > entry.glyph.slot)
+          .find((glyph) => leadArticulationOnString(glyph, symbol.stringNo));
+        if (conflict) {
+          nextLeadConflict = measure * 16 + conflict.slot;
+          break;
+        }
+      }
+      const endSlot = Math.min(phraseBoundary, nextLeadConflict ?? phraseBoundary);
+      return {
+        ...symbol,
+        durationSlots: Math.max(2, endSlot - absoluteSlot),
+      };
+    });
+    combinedByMeasure[entry.measure].push({ ...entry.glyph, symbols });
+  });
+
+  for (let measure = firstMeasure; measure <= lastMeasure; measure += 1) {
+    merged[measure] = combinedByMeasure[measure].sort((left, right) => left.slot - right.slot);
+  }
+  return merged;
+}
+
 export function extendDurationThroughNextMeasureTie({
   baseDurationSteps = 2,
   currentMeasureSteps,
