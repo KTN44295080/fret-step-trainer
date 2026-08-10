@@ -54,18 +54,30 @@ export function measurePosition(startMeasure, endMeasure, positionSteps, meterMa
 }
 
 export function normalizeLifeOverLeadEighthRun(glyphs) {
-  if (glyphs.length !== 8) return glyphs;
   const slots = glyphs.map((glyph) => glyph.slot);
-  const isRepeatedEighthNoteRun = slots
-    .slice(0, 7)
-    .every((slot, index) => slot === index * 2) && slots[7] === 15;
-  if (!isRepeatedEighthNoteRun) return glyphs;
+  const isRepeatedEighthNoteRun = glyphs.length === 8
+    && slots.slice(0, 7).every((slot, index) => slot === index * 2)
+    && slots[7] === 15;
+  if (isRepeatedEighthNoteRun) {
+    // The OCR placed the last eighth note on the final sixteenth-note slot.
+    // In the source score it belongs on the eighth-note grid at slot 14.
+    return glyphs.map((glyph, index) => (
+      index === 7 ? { ...glyph, slot: 14 } : glyph
+    ));
+  }
 
-  // The OCR placed the last eighth note on the final sixteenth-note slot.
-  // In the source score it belongs on the eighth-note grid at slot 14.
-  return glyphs.map((glyph, index) => (
-    index === 7 ? { ...glyph, slot: 14 } : glyph
-  ));
+  const phraseKey = glyphs.flatMap((glyph) => glyph.symbols ?? []).map((symbol) => symbol.text).join("|");
+  const chorusSlots = {
+    "(10)|13|13|10|13|10": [0, 2, 4, 6, 10, 12],
+    "(10)|10|12|10|10|10": [0, 2, 4, 6, 10, 12],
+    "(10)|10|9|9|9": [0, 2, 6, 10, 12],
+  }[phraseKey];
+  if (!chorusSlots || chorusSlots.length !== glyphs.length) return glyphs;
+
+  // Parenthesized notes are tied continuations on the downbeat. The following
+  // attacks sit on the eighth-note grid; OCR x-coordinates shifted these bars
+  // one sixteenth late (for example measures 35 and 37).
+  return glyphs.map((glyph, index) => ({ ...glyph, slot: chorusSlots[index] }));
 }
 
 export function extendDurationThroughNextMeasureTie({

@@ -2186,6 +2186,58 @@ export function GuitarTrainer() {
     setPlaybackPreset(nextPreset);
   }
 
+  function resumePlaybackSession(session: PlaybackSession) {
+    if (session.medleyPhase) {
+      setMedleySurface(session.songId, session.trackId, bpm, session.medleyPhase);
+    }
+    scheduleRange(
+      session.startMeasure,
+      session.endMeasure,
+      session.label,
+      bpm,
+      session.positionSteps,
+      {
+        songId: session.songId,
+        trackId: session.trackId,
+        capo: session.capo,
+        medleyPhase: session.medleyPhase,
+        countIn: false,
+      },
+    );
+  }
+
+  function toggleCurrentPositionPlayback() {
+    if (playing) {
+      pausePlayback();
+      return;
+    }
+    if (pausedSession) {
+      resumePlaybackSession(pausedSession);
+      return;
+    }
+
+    const currentMedleyPhase: MedleyPhase | undefined = medleyMode
+      ? songId === "life-over" ? "life" : "madow"
+      : undefined;
+    stopPlayback();
+    scheduleRange(
+      timelineMeasure,
+      song.totalMeasures,
+      medleyMode
+        ? `2曲通し · ${song.title} ${track.label} · 現在地から`
+        : `現在地 ${timelineMeasure}〜${song.totalMeasures}小節`,
+      bpm,
+      timelineStep,
+      {
+        songId,
+        trackId: effectiveTrackId,
+        capo: effectiveCapo,
+        medleyPhase: currentMedleyPhase,
+        countIn: false,
+      },
+    );
+  }
+
   function toggleSelectedPlayback() {
     if (playing) {
       pausePlayback();
@@ -2193,21 +2245,7 @@ export function GuitarTrainer() {
     }
     if (playbackPreset === "medley") {
       if (pausedSession?.medleyPhase) {
-        setMedleySurface(pausedSession.songId, pausedSession.trackId, bpm, pausedSession.medleyPhase);
-        scheduleRange(
-          pausedSession.startMeasure,
-          pausedSession.endMeasure,
-          pausedSession.label,
-          bpm,
-          pausedSession.positionSteps,
-          {
-            songId: pausedSession.songId,
-            trackId: pausedSession.trackId,
-            capo: pausedSession.capo,
-            medleyPhase: pausedSession.medleyPhase,
-            countIn: false,
-          },
-        );
+        resumePlaybackSession(pausedSession);
       } else {
         startMedley();
       }
@@ -2216,20 +2254,7 @@ export function GuitarTrainer() {
     if (pausedSession
       && pausedSession.startMeasure === selectedPlaybackChoice.start
       && pausedSession.endMeasure === selectedPlaybackChoice.end) {
-      scheduleRange(
-        pausedSession.startMeasure,
-        pausedSession.endMeasure,
-        pausedSession.label,
-        bpm,
-        pausedSession.positionSteps,
-        {
-          songId: pausedSession.songId,
-          trackId: pausedSession.trackId,
-          capo: pausedSession.capo,
-          medleyPhase: pausedSession.medleyPhase,
-          countIn: false,
-        },
-      );
+      resumePlaybackSession(pausedSession);
       return;
     }
     if (selectedPlaybackChoice.id === "remaining" && timelineStep > 0) {
@@ -2323,7 +2348,7 @@ export function GuitarTrainer() {
       song.meterMap,
     );
     stopPlayback();
-    setPlaybackPreset("remaining");
+    if (!medleyMode) setPlaybackPreset("remaining");
     setTimelineMeasure(nextMeasure);
     setTimelineStep(nextStep);
     setScorePageIndex(Math.floor((nextMeasure - 1) / 4));
@@ -2664,22 +2689,37 @@ export function GuitarTrainer() {
                   </p>
                   <p className="text-xs font-black text-lime-300 tabular-nums">{activeMeasure} / {song.totalMeasures} · {currentSongPart.label}</p>
               </div>
-              <div className="mt-2">
-                <input
-                  aria-label="曲の再生位置を小節で移動"
-                  className="min-h-10 w-full cursor-pointer"
-                  id="song-measure-seek"
-                  max={song.totalMeasures}
-                  min={1}
-                  onChange={(event) => seekToMeasure(Number(event.target.value))}
-                  step={1}
-                  type="range"
-                  value={activeMeasure}
-                />
-                <div className="flex justify-between text-[10px] font-bold text-stone-600" aria-hidden="true">
-                  <span>1小節</span>
-                  <span>{song.totalMeasures}小節</span>
+              <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div>
+                  <input
+                    aria-label="曲の再生位置を小節で移動"
+                    className="min-h-10 w-full cursor-pointer"
+                    id="song-measure-seek"
+                    max={song.totalMeasures}
+                    min={1}
+                    onChange={(event) => seekToMeasure(Number(event.target.value))}
+                    step={1}
+                    type="range"
+                    value={activeMeasure}
+                  />
+                  <div className="flex justify-between text-[10px] font-bold text-stone-600" aria-hidden="true">
+                    <span>1小節</span>
+                    <span>{song.totalMeasures}小節</span>
+                  </div>
                 </div>
+                <button
+                  aria-label={playing ? "現在の再生を一時停止" : pausedSession ? "停止位置から再開" : `${activeMeasure}小節から再生`}
+                  className={cn(
+                    "min-h-11 rounded-lg border px-4 text-sm font-black transition-colors",
+                    playing
+                      ? "border-red-400 bg-red-400/10 text-red-200 hover:bg-red-400/20"
+                      : "border-lime-300 bg-lime-300 text-lime-950 hover:bg-lime-200",
+                  )}
+                  onClick={toggleCurrentPositionPlayback}
+                  type="button"
+                >
+                  {playing ? "Ⅱ 一時停止" : pausedSession ? "▶ 再開" : "▶ 現在地から再生"}
+                </button>
               </div>
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="再生範囲">

@@ -57,6 +57,19 @@ test("life-over chorus eighth-note runs do not delay the last note", () => {
     normalizeLifeOverLeadEighthRun([{ slot: 0 }, { slot: 15 }]),
     [{ slot: 0 }, { slot: 15 }],
   );
+
+  const lateChorusBar = [
+    { slot: 1, technique: "tie", symbols: [{ text: "(10)" }] },
+    { slot: 3, symbols: [{ text: "10" }] },
+    { slot: 5, symbols: [{ text: "12" }] },
+    { slot: 7, symbols: [{ text: "10" }] },
+    { slot: 11, symbols: [{ text: "10" }] },
+    { slot: 13, symbols: [{ text: "10" }] },
+  ];
+  assert.deepEqual(
+    normalizeLifeOverLeadEighthRun(lateChorusBar).map((glyph) => glyph.slot),
+    [0, 2, 4, 6, 10, 12],
+  );
 });
 
 test("a parenthesized chorus note sustains the previous attack across the barline", () => {

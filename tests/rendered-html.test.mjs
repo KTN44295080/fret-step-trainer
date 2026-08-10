@@ -50,6 +50,8 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /リードギター TAB/);
   assert.match(html, /1–151小節/);
   assert.match(html, /aria-label="曲の再生位置を小節で移動"/);
+  assert.match(html, /▶ 現在地から再生/);
+  assert.match(html, /aria-label="1小節から再生"/);
   assert.match(html, />カウント</);
   assert.match(html, />クリック</);
   assert.doesNotMatch(html, /1小節カウントしてから開始|再生中もクリック音を鳴らす/);
@@ -119,9 +121,19 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   assert.match(trainer, /setMedleySurface\("madow", "backing"/);
   assert.match(trainer, /type TrackId = "lead" \| "backing" \| "third"/);
   assert.match(trainer, /function toggleSelectedPlayback/);
+  assert.match(trainer, /function toggleCurrentPositionPlayback/);
+  assert.match(trainer, /onClick=\{toggleCurrentPositionPlayback\}/);
+  assert.match(trainer, /timelineMeasure,\s*song\.totalMeasures/);
+  assert.match(trainer, /bpm,\s*timelineStep/);
+  assert.match(trainer, /if \(!medleyMode\) setPlaybackPreset\("remaining"\)/);
   assert.match(trainer, /function seekToMeasure/);
   assert.match(trainer, /function seekToScorePosition/);
   assert.match(trainer, /onSeek=\{seekToScorePosition\}/);
+
+  const lifeMeasure91 = tabData["life-over"].lead["91"];
+  const lastMeasure91Symbol = lifeMeasure91[lifeMeasure91.length - 1].symbols[0];
+  assert.equal(lastMeasure91Symbol.stringNo, 2);
+  assert.equal(lastMeasure91Symbol.text, "10");
   assert.match(trainer, /setPlaybackPreset\("remaining"\)/);
   assert.match(trainer, /aria-pressed=\{selected\}/);
   assert.match(trainer, /selected \? toggleSelectedPlayback\(\) : selectPlaybackPreset\(choice\.id\)/);
