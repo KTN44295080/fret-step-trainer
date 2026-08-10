@@ -998,18 +998,19 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
         glyph(12, (3, "7")),
     ]
     lead["79"] = [
-        glyph(3, (2, "12")),
-        glyph(7, (1, "10")),
-        glyph(9, (1, "12")),
-        glyph(11, (1, "10")),
-        glyph(13, (1, "12")),
+        glyph(2, (2, "12")),
+        glyph(6, (1, "10")),
+        glyph(8, (1, "12")),
+        glyph(10, (1, "10")),
+        glyph(12, (1, "12"), technique="full"),
     ]
     lead["80"] = [
+        glyph(0, (2, "10")),
         glyph(4, (2, "10"), technique="H"),
         glyph(5, (2, "12")),
-        glyph(7, (2, "10")),
-        glyph(9, (2, "×")),
-        glyph(10, (2, "7")),
+        glyph(6, (2, "10")),
+        glyph(8, (2, "×")),
+        glyph(9, (2, "7")),
         glyph(12, (3, "9")),
         glyph(14, (3, "7")),
     ]

@@ -246,7 +246,18 @@ test("keeps the video-audited lead strings and the single live monitor", async (
     { slot: 13, symbols: [{ stringNo: 5, text: "9" }] },
     { slot: 14, symbols: [{ stringNo: 4, text: "7" }] },
   ]);
+  assert.deepEqual(tabData["life-over"].lead["79"], [
+    { slot: 2, symbols: [{ stringNo: 2, text: "12" }] },
+    { slot: 6, symbols: [{ stringNo: 1, text: "10" }] },
+    { slot: 8, symbols: [{ stringNo: 1, text: "12" }] },
+    { slot: 10, symbols: [{ stringNo: 1, text: "10" }] },
+    { slot: 12, symbols: [{ stringNo: 1, text: "12" }], technique: "full" },
+  ]);
+  assert.deepEqual(tabData["life-over"].lead["80"].map((glyph) => glyph.slot), [
+    0, 4, 5, 6, 8, 9, 12, 14,
+  ]);
   assert.deepEqual(tabData["life-over"].lead["80"].flatMap((glyph) => glyph.symbols), [
+    { stringNo: 2, text: "10" },
     { stringNo: 2, text: "10" },
     { stringNo: 2, text: "12" },
     { stringNo: 2, text: "10" },
