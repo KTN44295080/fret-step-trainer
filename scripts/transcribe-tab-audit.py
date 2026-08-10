@@ -724,6 +724,13 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
                 glyph(slot, (2, "8"), (3, "×"), (4, "5"))
                 for slot in range(8, 16)
             ]
+            madow_lead["15"] = [
+                glyph(slot, (2, "7"), (3, "×"), (4, "4"))
+                for slot in range(8)
+            ] + [
+                glyph(slot, (2, "8"), (3, "×"), (4, "5"))
+                for slot in range(8, 16)
+            ]
             madow_lead["57"] = [
                 glyph(slot, (2, "12"), (3, "×"), (4, "9"))
                 for slot in range(0, 16, 2)
@@ -739,8 +746,40 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
                     for slot in (2, 4, 8, 12)
                 ],
             ]
+            # Measure 124 is 6/4 with eighteen evenly spaced bend attacks.
+            # Keep fractional normalized slots so playback maps them onto the
+            # 24-step measure instead of collapsing two attacks together.
+            madow_lead["124"] = [
+                glyph(index * 16 / 18, (2, "12"), (3, "14"), technique="full")
+                for index in range(12)
+            ] + [
+                glyph(index * 16 / 18, (2, "15"), (3, "17"), technique="full")
+                for index in range(12, 18)
+            ]
             madow_lead["149"] = [
                 glyph(slot, (3, "5"), (4, "×"), (5, "3"))
+                for slot in range(16)
+            ]
+            madow_lead["150"] = [
+                *[
+                    glyph(slot, (3, "7"), (4, "×"), (5, "5"))
+                    for slot in range(8)
+                ],
+                *[
+                    glyph(slot, (3, "9"), (4, "×"), (5, "7"))
+                    for slot in range(8, 14)
+                ],
+                *[
+                    glyph(slot, (3, "11"), (4, "×"), (5, "9"))
+                    for slot in range(14, 16)
+                ],
+            ]
+            madow_lead["156"] = [
+                glyph(slot, (2, "15"), (3, "14"))
+                for slot in range(16)
+            ]
+            madow_lead["173"] = [
+                glyph(slot, (2, "12"), (3, "×"), (4, "9"))
                 for slot in range(16)
             ]
             madow_lead["184"] = [
@@ -771,6 +810,16 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
                     technique="tie",
                 )
             ]
+            madow_lead["206"] = [
+                *[
+                    glyph(slot, (2, "10"), (3, "12"), technique="full")
+                    for slot in range(8)
+                ],
+                *[
+                    glyph(slot, (2, "12"), (3, "14"), technique="full")
+                    for slot in range(8, 16)
+                ],
+            ]
         if isinstance(madow_backing, dict):
             madow_backing["78"] = [
                 glyph(0, (2, "(8)"), (3, "(7)"), (4, "(10)"), technique="tie")
@@ -779,6 +828,10 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
                 glyph(4, (2, "10"), (3, "9"), (4, "12")),
                 glyph(12, (2, "12"), (3, "12"), (4, "12")),
             ]
+            for measure in ("128", "132", "136"):
+                madow_backing[measure] = [
+                    glyph(0, (3, "(0)"), technique="tie")
+                ]
             madow_backing["138"] = [
                 glyph(
                     0,
@@ -856,6 +909,14 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
         glyph(11, (5, "7")),
         glyph(13, (5, "9")),
         glyph(14, (4, "7")),
+    ]
+    lead["91"] = [
+        glyph(1, (2, "(10)"), technique="tie"),
+        glyph(3, (2, "13")),
+        glyph(5, (1, "13")),
+        glyph(7, (1, "10")),
+        glyph(11, (2, "13")),
+        glyph(13, (2, "10")),
     ]
 
     for measure in ("13", "53"):

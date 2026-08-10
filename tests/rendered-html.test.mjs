@@ -134,6 +134,57 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   const lastMeasure91Symbol = lifeMeasure91[lifeMeasure91.length - 1].symbols[0];
   assert.equal(lastMeasure91Symbol.stringNo, 2);
   assert.equal(lastMeasure91Symbol.text, "10");
+
+  const symbolSignature = (glyph) => glyph.symbols
+    .map((symbol) => `${symbol.stringNo}:${symbol.text}`)
+    .join("+");
+  const assertSixteenthRun = (measure, expected) => {
+    assert.equal(measure.length, 16);
+    assert.deepEqual(measure.map((glyph) => glyph.slot), [...Array(16).keys()]);
+    assert.deepEqual(measure.map(symbolSignature), expected);
+  };
+  assertSixteenthRun(tabData.madow.lead["15"], [
+    ...Array(8).fill("2:7+3:×+4:4"),
+    ...Array(8).fill("2:8+3:×+4:5"),
+  ]);
+  assert.equal(tabData.madow.lead["124"].length, 18);
+  assert.equal(new Set(tabData.madow.lead["124"].map((glyph) => glyph.slot)).size, 18);
+  assert.deepEqual(tabData.madow.lead["124"].map(symbolSignature), [
+    ...Array(12).fill("2:12+3:14"),
+    ...Array(6).fill("2:15+3:17"),
+  ]);
+  assertSixteenthRun(tabData.madow.lead["150"], [
+    ...Array(8).fill("3:7+4:×+5:5"),
+    ...Array(6).fill("3:9+4:×+5:7"),
+    ...Array(2).fill("3:11+4:×+5:9"),
+  ]);
+  assertSixteenthRun(tabData.madow.lead["156"], Array(16).fill("2:15+3:14"));
+  assertSixteenthRun(tabData.madow.lead["173"], Array(16).fill("2:12+3:×+4:9"));
+  assertSixteenthRun(tabData.madow.lead["206"], [
+    ...Array(8).fill("2:10+3:12"),
+    ...Array(8).fill("2:12+3:14"),
+  ]);
+  for (const measure of ["128", "132", "136"]) {
+    assert.equal(tabData.madow.backing[measure][0].slot, 0);
+    assert.equal(symbolSignature(tabData.madow.backing[measure][0]), "3:(0)");
+  }
+
+  for (const [songId, song] of Object.entries(tabData)) {
+    for (const [trackId, measures] of Object.entries(song)) {
+      for (const [measureNo, glyphs] of Object.entries(measures)) {
+        const signatures = glyphs.map((glyph) => [
+          glyph.slot,
+          glyph.technique ?? "",
+          symbolSignature(glyph),
+        ].join("|"));
+        assert.equal(
+          new Set(signatures).size,
+          signatures.length,
+          `duplicate TAB event: ${songId}/${trackId}/${measureNo}`,
+        );
+      }
+    }
+  }
   assert.match(trainer, /setPlaybackPreset\("remaining"\)/);
   assert.match(trainer, /aria-pressed=\{selected\}/);
   assert.match(trainer, /selected \? toggleSelectedPlayback\(\) : selectPlaybackPreset\(choice\.id\)/);

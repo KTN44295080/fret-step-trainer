@@ -821,12 +821,14 @@ type AuditedTabData = Record<SongId, Partial<Record<TrackId, Record<string, Scor
 const AUDITED_TAB_DATA = tabAuditData as AuditedTabData;
 const AUDIT_REVIEW_MEASURES = new Set<string>();
 const MADOW_NATIVE_FRAME_CONFIRMED = new Set<string>([
-  ...[7, 57, 73, 93, 149, 184, 200, 201, 202, 204, 207].map((measure) => `madow:lead:${measure}`),
-  ...[78, 79, 138, 143, 146, 147, 171, 176].map((measure) => `madow:backing:${measure}`),
+  ...[7, 15, 57, 73, 93, 124, 149, 150, 156, 173, 184, 200, 201, 202, 204, 206, 207]
+    .map((measure) => `madow:lead:${measure}`),
+  ...[78, 79, 128, 132, 136, 138, 143, 146, 147, 171, 176]
+    .map((measure) => `madow:backing:${measure}`),
 ]);
 const MADOW_NEEDS_REVIEW = new Set<string>([
   ...[2, 3, 17, 18, 22, 26, 40, 60, 64, 68, 76, 77, 78, 79, 80, 81, 82,
-    97, 110, 113, 114, 115, 119, 120, 121, 122, 124, 129, 133, 137, 141,
+    97, 110, 113, 114, 115, 119, 120, 121, 122, 129, 133, 137, 141,
     144, 148, 158, 165, 171, 183, 196, 197, 203].map((measure) => `madow:lead:${measure}`),
   ...[2, 3, 4, 5, 6, 8, 9, 11, 12, 14, 16, 20, 22, 24, 26, 28, 30, 32,
     34, 39, 40, 56, 67, 68, 80, 82, 85, 87, 88, 90, 91, 97, 117, 118, 119,
