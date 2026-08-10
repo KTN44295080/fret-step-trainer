@@ -1015,6 +1015,17 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
         glyph(14, (3, "7")),
     ]
 
+    # Measure 87 starts with the tied continuation of measure 86. OCR dropped
+    # the parentheses/tie and shifted the whole phrase one sixteenth late.
+    lead["87"] = [
+        glyph(0, (2, "(10)"), technique="tie"),
+        glyph(2, (2, "13")),
+        glyph(4, (1, "13")),
+        glyph(6, (1, "10")),
+        glyph(10, (2, "13")),
+        glyph(12, (2, "10")),
+    ]
+
     # Measure 94 is the same straight eighth-note run used throughout the
     # chorus. OCR pushed its final two notes one sixteenth late.
     lead["94"] = [

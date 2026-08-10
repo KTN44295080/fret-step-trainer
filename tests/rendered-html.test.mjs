@@ -75,6 +75,10 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /Aメロ/);
   assert.match(html, /Bメロ/);
   assert.match(html, /2番サビ/);
+  assert.match(html, /82–97/);
+  assert.match(html, /Cメロ/);
+  assert.match(html, /98–113/);
+  assert.doesNotMatch(html, /82–113/);
   assert.match(html, /アウトロ/);
   assert.doesNotMatch(html, /サビ〜間奏/);
   assert.match(html, /6LfUfHSIiMw/);
@@ -265,6 +269,14 @@ test("keeps the video-audited lead strings and the single live monitor", async (
     { stringNo: 2, text: "7" },
     { stringNo: 3, text: "9" },
     { stringNo: 3, text: "7" },
+  ]);
+  assert.deepEqual(tabData["life-over"].lead["87"], [
+    { slot: 0, symbols: [{ stringNo: 2, text: "(10)" }], technique: "tie" },
+    { slot: 2, symbols: [{ stringNo: 2, text: "13" }] },
+    { slot: 4, symbols: [{ stringNo: 1, text: "13" }] },
+    { slot: 6, symbols: [{ stringNo: 1, text: "10" }] },
+    { slot: 10, symbols: [{ stringNo: 2, text: "13" }] },
+    { slot: 12, symbols: [{ stringNo: 2, text: "10" }] },
   ]);
   assert.deepEqual(tabData["life-over"].lead["94"].map((glyph) => glyph.slot), [
     0, 2, 4, 6, 8, 10, 12, 14,
