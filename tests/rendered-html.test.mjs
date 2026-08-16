@@ -70,6 +70,11 @@ test("server-renders the finished guitar trainer", async () => {
   assert.doesNotMatch(html, /原動画フレーム読取|高解像度OCR転記|譜面の監査・訂正メモ/);
   assert.match(html, /原曲動画/);
   assert.match(html, /A\/B・動画同期/);
+  assert.match(html, /カポの実音を原曲と聴き比べ/);
+  assert.match(html, /交互に再生/);
+  assert.match(html, /演奏0:00の同じ拍/);
+  assert.match(html, /カポなし E3/);
+  assert.match(html, /カポ3判定 G3/);
   assert.match(html, /学習ガイド/);
   assert.match(html, /TABの基本・進捗/);
   assert.match(html, /Aメロ/);
@@ -144,6 +149,12 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   assert.match(trainer, /if \(!medleyMode\) setPlaybackPreset\("remaining"\)/);
   assert.match(trainer, /function seekToMeasure/);
   assert.match(trainer, /function seekToScorePosition/);
+  assert.match(trainer, /function playCurrentNote/);
+  assert.match(trainer, /function playWrittenPitch/);
+  assert.match(trainer, /function playWrittenPitchBoth/);
+  assert.match(trainer, /function cueOriginalPerformanceAtNote/);
+  assert.match(trainer, /originalPitchCueRef/);
+  assert.match(trainer, /videoDetailsRef/);
   assert.match(trainer, /onSeek=\{seekToScorePosition\}/);
 
   const lifeMeasure91 = tabData["life-over"].lead["91"];

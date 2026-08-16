@@ -1452,6 +1452,7 @@ export function GuitarTrainer() {
   const [guidedMode, setGuidedMode] = useState(false);
   const [guidedWaiting, setGuidedWaiting] = useState(false);
   const [auditNotes, setAuditNotes] = useState<Record<string, string>>({});
+  const [pitchCompareLabel, setPitchCompareLabel] = useState("");
   const audioContextRef = useRef<AudioContext | null>(null);
   const timerIdsRef = useRef<number[]>([]);
   const activeNodesRef = useRef<Set<OscillatorNode>>(new Set());
@@ -1459,6 +1460,8 @@ export function GuitarTrainer() {
   const playbackProgressTimerRef = useRef<number | null>(null);
   const videoSyncTimerRef = useRef<number | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const videoDetailsRef = useRef<HTMLDetailsElement | null>(null);
+  const originalPitchCueRef = useRef(false);
   const inputStreamRef = useRef<MediaStream | null>(null);
   const inputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const inputFilterRef = useRef<BiquadFilterNode | null>(null);
@@ -1577,6 +1580,13 @@ export function GuitarTrainer() {
   }, [activeNotes]);
 
   const currentNote = activeNotes[Math.min(noteIndex, activeNotes.length - 1)];
+  const writtenNote = songId === "life-over"
+    ? notesForTrack(songId, effectiveTrackId, false, lifeLeadSectionMode).find((note) => (
+      note.measure === currentNote.measure && note.tick === currentNote.tick
+    )) ?? currentNote
+    : currentNote;
+  const openCapoFrequency = frequencyFor(writtenNote.stringNo, writtenNote.fret, 0);
+  const judgedCapoFrequency = frequencyFor(writtenNote.stringNo, writtenNote.fret, SONGS["life-over"].capo);
   const targetFrequency = frequencyFor(currentNote.stringNo, currentNote.fret, effectiveCapo);
   const selectedTunerString = tunerString === "auto"
     ? null
@@ -2020,6 +2030,43 @@ export function GuitarTrainer() {
     const context = getAudioContext();
     void context.resume();
     schedulePluck(context, currentNote.stringNo, currentNote.fret, effectiveCapo, context.currentTime + 0.04, 0.7);
+  }
+
+  function playWrittenPitch(capo: 0 | 3) {
+    const context = getAudioContext();
+    void context.resume();
+    const frequency = capo === 0 ? openCapoFrequency : judgedCapoFrequency;
+    setPitchCompareLabel(capo === 0
+      ? `カポなし ${noteName(frequency)}`
+      : `カポ3判定 ${noteName(frequency)}`);
+    schedulePluck(context, writtenNote.stringNo, writtenNote.fret, capo, context.currentTime + 0.04, 0.95);
+  }
+
+  function playWrittenPitchBoth() {
+    const context = getAudioContext();
+    void context.resume();
+    setPitchCompareLabel(`先にカポなし ${noteName(openCapoFrequency)}、つづいてカポ3 ${noteName(judgedCapoFrequency)}`);
+    schedulePluck(context, writtenNote.stringNo, writtenNote.fret, 0, context.currentTime + 0.04, 0.9);
+    schedulePluck(context, writtenNote.stringNo, writtenNote.fret, 3, context.currentTime + 1.2, 0.9);
+  }
+
+  function cueOriginalPerformanceAtNote() {
+    if (songId !== "life-over") return;
+    stopPlayback();
+    const noteStep = (currentNote.tick * 2 / 16) * stepsForMeasure(currentNote.measure, song.meterMap);
+    const seconds = Math.max(0, Math.floor(videoTimeForPosition(
+      0,
+      song.originalBpm,
+      currentNote.measure,
+      noteStep,
+      song.meterMap,
+    )));
+    originalPitchCueRef.current = true;
+    if (videoDetailsRef.current) videoDetailsRef.current.open = true;
+    setVideoStart(seconds);
+    setVideoAutoplay(true);
+    setVideoNonce((nonce) => nonce + 1);
+    setPitchCompareLabel(`${currentNote.measure}小節の演奏（0:00側）を原速で再生`);
   }
 
   function scheduleRange(
@@ -2719,7 +2766,7 @@ export function GuitarTrainer() {
 
       <div className="mx-auto max-w-[96rem] px-4 py-4 sm:px-6 lg:px-8">
         <div className="min-w-0 space-y-4">
-          <details className="overflow-hidden rounded-xl border border-stone-800 bg-stone-900" aria-labelledby="video-title">
+          <details className="overflow-hidden rounded-xl border border-stone-800 bg-stone-900" aria-labelledby="video-title" ref={videoDetailsRef}>
             <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-3 px-4 py-2 font-black">
               <span id="video-title">原曲動画</span>
               <span className="text-xs text-lime-300">{activeMeasure}小節から開く</span>
@@ -2739,7 +2786,9 @@ export function GuitarTrainer() {
                 key={`${videoStart}-${videoNonce}`}
                 loading="lazy"
                 onLoad={() => {
-                  sendVideoCommand("setPlaybackRate", [bpm / song.originalBpm]);
+                  const originalCue = originalPitchCueRef.current;
+                  originalPitchCueRef.current = false;
+                  sendVideoCommand("setPlaybackRate", [originalCue ? 1 : bpm / song.originalBpm]);
                   if (videoAutoplay) sendVideoCommand("playVideo");
                 }}
                 ref={iframeRef}
@@ -2878,6 +2927,35 @@ export function GuitarTrainer() {
                 <p className="text-sm font-black tabular-nums">入力 {detectedFrequency ? noteName(detectedFrequency) : "—"}</p>
                 <p className="text-pretty text-xs font-bold text-stone-400" aria-live="polite">{tunerMessage}</p>
               </div>}
+
+              {songId === "life-over" && (
+                <div className="mt-3 rounded-lg border border-amber-400/50 bg-amber-950/25 p-3" aria-label="カポの実音を原曲と聴き比べ">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="text-xs font-black text-amber-200">カポの実音を原曲と聴き比べ</p>
+                    <p className="text-[0.65rem] font-bold text-stone-500 tabular-nums">
+                      TAB {writtenNote.stringNo}弦 {writtenNote.fret}
+                    </p>
+                  </div>
+                  <p className="mt-1 text-pretty text-[0.7rem] font-bold text-stone-400">
+                    今の判定はカポ3側です。原音に近いほうを、先頭の演奏（0:00）と突き合わせてください。Guitar Pro の MIDI は使いません。
+                  </p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <button className="min-h-11 rounded-lg border border-stone-600 bg-stone-950 px-2 text-xs font-black hover:border-lime-300" onClick={() => playWrittenPitch(0)} type="button">
+                      カポなし {noteName(openCapoFrequency)}
+                    </button>
+                    <button className="min-h-11 rounded-lg border border-stone-600 bg-stone-950 px-2 text-xs font-black hover:border-lime-300" onClick={() => playWrittenPitch(3)} type="button">
+                      カポ3判定 {noteName(judgedCapoFrequency)}
+                    </button>
+                    <button className="min-h-11 rounded-lg bg-lime-300 px-2 text-xs font-black text-lime-950" onClick={playWrittenPitchBoth} type="button">
+                      交互に再生
+                    </button>
+                    <button className="min-h-11 rounded-lg border border-amber-400/70 bg-stone-950 px-2 text-xs font-black text-amber-100 hover:border-amber-200" onClick={cueOriginalPerformanceAtNote} type="button">
+                      演奏0:00の同じ拍
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[0.65rem] font-bold text-stone-500" aria-live="polite">{pitchCompareLabel || "先に合成音、つづいて演奏を聴くと比較しやすいです。"}</p>
+                </div>
+              )}
 
               <details className="mt-3 border-t border-stone-800 pt-2">
                 <summary className="min-h-10 cursor-pointer py-2 text-xs font-black text-stone-400">A/B・動画同期</summary>
@@ -3022,7 +3100,7 @@ export function GuitarTrainer() {
             <div className="grid gap-4 bg-stone-800/50 p-4 sm:grid-cols-[1fr_auto] sm:items-center sm:p-5">
               <div className="grid grid-cols-3 gap-2">
                 <button className="min-h-12 rounded-xl border border-stone-600 bg-stone-900 px-3 font-bold disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={() => goBy(-1)} disabled={noteIndex === 0}>← 前の音</button>
-                <button className="min-h-12 rounded-xl bg-lime-300 px-3 font-black text-lime-950 hover:bg-lime-200" type="button" onClick={playCurrentNote}>音を聴く</button>
+                <button className="min-h-12 rounded-xl bg-lime-300 px-3 font-black text-lime-950 hover:bg-lime-200" type="button" onClick={playCurrentNote}>今の判定音</button>
                 <button className="min-h-12 rounded-xl border border-stone-600 bg-stone-900 px-3 font-bold disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={() => goBy(1)} disabled={noteIndex === activeNotes.length - 1}>次の音 →</button>
               </div>
               <button
