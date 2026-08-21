@@ -1229,21 +1229,16 @@ function ProceduralTabMeasure({
     <section
       className={cn(
         "overflow-hidden rounded-lg border bg-stone-900",
-        isMixedMeter ? "border-amber-400/80" : "border-lime-300/50",
+        isMixedMeter ? "border-amber-400/50" : "border-lime-300/50",
       )}
       data-mixed-meter={isMixedMeter}
       aria-label={`${measure}小節目、${isMixedMeter ? `4分の${beats}拍子、` : ""}${label}`}
     >
       <div className="flex items-center justify-between border-b border-stone-700 px-3 py-1.5">
         <p className="text-xs font-bold tabular-nums">MEASURE {String(measure).padStart(3, "0")}</p>
-        <div className="flex items-center gap-2">
-          {isMixedMeter && (
-            <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[0.65rem] font-black text-amber-950 tabular-nums">
-              {beats} / 4
-            </span>
-          )}
-          <p className="text-[0.65rem] font-bold text-lime-300">{hasNotes ? label.toUpperCase() : "REST"}</p>
-        </div>
+        <p className={cn("text-[0.65rem] font-bold", isMixedMeter ? "text-amber-300" : "text-lime-300")}>
+          {hasNotes ? label.toUpperCase() : "REST"}
+        </p>
       </div>
       <div
         className={cn("tab-measure", hasNotes ? "tab-measure-technique" : "tab-measure-rest")}
@@ -1284,16 +1279,7 @@ function ProceduralTabMeasure({
           </span>
         ))) : <span className="tab-whole-rest" aria-hidden="true">━</span>}
       </div>
-      <div
-        className={cn(
-          "grid border-t px-2 py-1 text-center text-[0.6rem] font-bold",
-          isMixedMeter
-            ? "border-amber-400/50 bg-amber-950/30 text-amber-200"
-            : "border-stone-800 text-stone-500",
-        )}
-        style={{ gridTemplateColumns: `repeat(${beats * 2}, minmax(0, 1fr))` }}
-        aria-hidden="true"
-      >
+      <div className="grid border-t border-stone-800 px-2 py-1 text-center text-[0.6rem] font-bold text-stone-500" style={{ gridTemplateColumns: `repeat(${beats * 2}, minmax(0, 1fr))` }} aria-hidden="true">
         {Array.from({ length: beats }, (_, index) => [String(index + 1), "＆"]).flat().map((beat, index) => <span key={`${measure}-${label}-beat-${index}`}>{beat}</span>)}
       </div>
     </section>

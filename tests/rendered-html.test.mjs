@@ -268,9 +268,10 @@ test("highlights only mixed-meter score measures", async () => {
 
   assert.match(trainer, /const isMixedMeter = beats !== 4/);
   assert.match(trainer, /data-mixed-meter=\{isMixedMeter\}/);
-  assert.match(trainer, /isMixedMeter \? "border-amber-400\/80" : "border-lime-300\/50"/);
-  assert.match(trainer, /\{beats\} \/ 4/);
-  assert.match(trainer, /bg-amber-950\/30 text-amber-200/);
+  assert.match(trainer, /isMixedMeter \? "border-amber-400\/50" : "border-lime-300\/50"/);
+  assert.match(trainer, /isMixedMeter \? "text-amber-300" : "text-lime-300"/);
+  assert.doesNotMatch(trainer, /\{beats\} \/ 4/);
+  assert.doesNotMatch(trainer, /bg-amber-950\/30 text-amber-200/);
 });
 
 test("keeps separate live guitar and click volume faders", async () => {
