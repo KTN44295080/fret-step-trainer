@@ -55,6 +55,18 @@ export function measurePosition(startMeasure, endMeasure, positionSteps, meterMa
 
 export function normalizeLifeOverLeadEighthRun(glyphs) {
   const slots = glyphs.map((glyph) => glyph.slot);
+  const phraseKey = glyphs.flatMap((glyph) => glyph.symbols ?? []).map((symbol) => symbol.text).join("|");
+  const isOpeningPickup = glyphs.length === 3
+    && slots[0] === 11
+    && slots[1] === 13
+    && slots[2] === 14
+    && phraseKey === "7|9|7";
+  if (isOpeningPickup) {
+    // The time signature shifted the OCR x-coordinates in measure 1.
+    // The score shows three evenly spaced eighth notes on slots 10, 12, 14.
+    return glyphs.map((glyph, index) => ({ ...glyph, slot: 10 + index * 2 }));
+  }
+
   const isRepeatedEighthNoteRun = glyphs.length === 8
     && slots.slice(0, 7).every((slot, index) => slot === index * 2)
     && slots[7] === 15;
@@ -66,7 +78,6 @@ export function normalizeLifeOverLeadEighthRun(glyphs) {
     ));
   }
 
-  const phraseKey = glyphs.flatMap((glyph) => glyph.symbols ?? []).map((symbol) => symbol.text).join("|");
   const chorusSlots = {
     "(10)|13|13|10|13|10": [0, 2, 4, 6, 10, 12],
     "(10)|10|12|10|10|10": [0, 2, 4, 6, 10, 12],
@@ -78,6 +89,101 @@ export function normalizeLifeOverLeadEighthRun(glyphs) {
   // attacks sit on the eighth-note grid; OCR x-coordinates shifted these bars
   // one sixteenth late (for example measures 35 and 37).
   return glyphs.map((glyph, index) => ({ ...glyph, slot: chorusSlots[index] }));
+}
+
+function phraseMeasureFingerprint(glyphs = []) {
+  return glyphs.map((glyph) => {
+    const symbols = (glyph.symbols ?? [])
+      .map((symbol) => `${symbol.stringNo}:${symbol.text}:${symbol.durationSlots ?? ""}`)
+      .join("+");
+    return `${glyph.slot}:${glyph.technique ?? ""}:${symbols}`;
+  }).join(",");
+}
+
+function phraseHash(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export function phraseFingerprint(glyphRecord, startMeasure, measureCount = 1) {
+  return Array.from({ length: measureCount }, (_, index) => (
+    phraseMeasureFingerprint(glyphRecord[startMeasure + index] ?? [])
+  )).join("/");
+}
+
+export function buildPhraseInstances(
+  glyphRecord,
+  sections,
+  scope = "phrase",
+  windowSizes = [4, 2, 1],
+) {
+  const sizes = [...new Set(windowSizes)]
+    .filter((size) => Number.isInteger(size) && size > 0)
+    .sort((left, right) => right - left);
+  if (!sizes.includes(1)) sizes.push(1);
+
+  const candidates = [];
+  for (const section of sections) {
+    const sectionSizes = sizes.filter((size) => size <= (section.phraseMeasures ?? Infinity));
+    for (let measure = section.start; measure <= section.end; measure += 1) {
+      for (const size of sectionSizes) {
+        if (measure + size - 1 > section.end) continue;
+        const fingerprint = phraseFingerprint(glyphRecord, measure, size);
+        if (!fingerprint.replaceAll("/", "")) continue;
+        candidates.push({ measure, size, fingerprint });
+      }
+    }
+  }
+
+  const counts = new Map();
+  for (const candidate of candidates) {
+    const key = `${candidate.size}:${candidate.fingerprint}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  const instances = [];
+  for (const section of sections) {
+    const sectionSizes = sizes.filter((size) => size <= (section.phraseMeasures ?? Infinity));
+    let measure = section.start;
+    while (measure <= section.end) {
+      const currentFingerprint = phraseFingerprint(glyphRecord, measure, 1);
+      if (!currentFingerprint) {
+        measure += 1;
+        continue;
+      }
+
+      const repeated = sectionSizes.find((size) => {
+        if (size === 1 || measure + size - 1 > section.end) return false;
+        const fingerprint = phraseFingerprint(glyphRecord, measure, size);
+        const halfSize = size / 2;
+        if (Number.isInteger(halfSize)
+          && phraseFingerprint(glyphRecord, measure, halfSize)
+            === phraseFingerprint(glyphRecord, measure + halfSize, halfSize)) {
+          return false;
+        }
+        return (counts.get(`${size}:${fingerprint}`) ?? 0) > 1;
+      });
+      const measureCount = repeated ?? 1;
+      const fingerprint = phraseFingerprint(glyphRecord, measure, measureCount);
+      const canonicalId = `${scope}:p${measureCount}-${phraseHash(fingerprint)}`;
+      instances.push({
+        id: `${scope}:m${measure}-${measure + measureCount - 1}`,
+        canonicalId,
+        fingerprint,
+        sectionLabel: section.label,
+        startMeasure: measure,
+        endMeasure: measure + measureCount - 1,
+        measureCount,
+      });
+      measure += measureCount;
+    }
+  }
+
+  return instances;
 }
 
 function tabFret(text) {

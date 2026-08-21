@@ -14,3 +14,25 @@ export function positionToMeasure(startMeasure: number, endMeasure: number, posi
 export function nearestPlaybackRate(requestedRate: number, availableRates: readonly number[]): number;
 export function centsBetween(frequency: number, targetFrequency: number): number;
 export function clamp(value: number, minimum: number, maximum: number): number;
+
+export type PhraseSection = { label: string; start: number; end: number; phraseMeasures?: 1 | 2 | 4 };
+export type PhraseInstance = {
+  id: string;
+  canonicalId: string;
+  fingerprint: string;
+  sectionLabel: string;
+  startMeasure: number;
+  endMeasure: number;
+  measureCount: number;
+};
+export function phraseFingerprint(
+  glyphRecord: Record<number, Array<{ slot: number; technique?: string; symbols?: Array<{ stringNo: number; text: string; durationSlots?: number }> }>>,
+  startMeasure: number,
+  measureCount?: number,
+): string;
+export function buildPhraseInstances(
+  glyphRecord: Record<number, Array<{ slot: number; technique?: string; symbols?: Array<{ stringNo: number; text: string; durationSlots?: number }> }>>,
+  sections: PhraseSection[],
+  scope?: string,
+  windowSizes?: number[],
+): PhraseInstance[];

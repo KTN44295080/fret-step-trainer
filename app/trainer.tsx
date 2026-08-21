@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import tabAuditData from "./tab-audit-data.json";
 import {
+  buildPhraseInstances,
   centsBetween,
   clamp,
   detectPitch,
@@ -21,6 +22,7 @@ import {
 } from "./trainer-core.mjs";
 
 type StringNumber = 1 | 2 | 3 | 4 | 5 | 6;
+const MIN_PRACTICE_BPM = 25;
 
 type TabEvent = {
   id: string;
@@ -428,6 +430,7 @@ type SongPart = {
   start: number;
   end: number;
   kind: "notes" | "rest" | "technique";
+  phraseMeasures?: 1 | 2 | 4;
 };
 
 function scorePages(totalMeasures: number) {
@@ -439,7 +442,7 @@ function scorePages(totalMeasures: number) {
 }
 
 const LIFE_OVER_SONG_MAP: SongPart[] = [
-  { label: "イントロ", range: "1–17", start: 1, end: 17, kind: "notes" },
+  { label: "イントロ", range: "1–17", start: 1, end: 17, kind: "notes", phraseMeasures: 2 },
   { label: "Aメロ", range: "18–25", start: 18, end: 25, kind: "rest" },
   { label: "Bメロ", range: "26–33", start: 26, end: 33, kind: "rest" },
   { label: "サビ", range: "34–49", start: 34, end: 49, kind: "notes" },
@@ -882,38 +885,6 @@ const AUDITED_NOTES: Record<SongId, Partial<Record<TrackId, ReturnType<typeof no
   },
 };
 
-function transposeLifeLeadSymbolForNoCapo(text: string) {
-  if (text === "<5>") return "3/AH8";
-  if (text.includes("×")) return text;
-  return text.replace(/\d+/, (fret) => String(Number(fret) + 3));
-}
-
-const LIFE_NO_CAPO_LEAD_GLYPHS = Object.fromEntries(
-  Object.entries(AUDITED_GLYPHS["life-over"].lead!).map(([measure, glyphs]) => [
-    Number(measure),
-    glyphs.map((glyph) => ({
-      ...glyph,
-      symbols: glyph.symbols.map((symbol) => ({
-        ...symbol,
-        text: transposeLifeLeadSymbolForNoCapo(symbol.text),
-      })),
-    })),
-  ]),
-) as Record<number, ScoreGlyph[]>;
-
-const LIFE_NO_CAPO_MIDDLE_GLYPHS = Object.fromEntries(
-  Object.entries(LIFE_OVER_MIDDLE_GLYPHS).map(([measure, glyphs]) => [
-    Number(measure),
-    glyphs.map((glyph) => ({
-      ...glyph,
-      symbols: glyph.symbols.map((symbol) => ({
-        ...symbol,
-        text: transposeLifeLeadSymbolForNoCapo(symbol.text),
-      })),
-    })),
-  ]),
-) as Record<number, ScoreGlyph[]>;
-
 const LIFE_MIDDLE_SECTION_GLYPHS = {
   ...LIFE_OVER_ORIGINAL_LEAD_GLYPHS,
   ...Object.fromEntries(Array.from({ length: 16 }, (_, index) => {
@@ -922,32 +893,16 @@ const LIFE_MIDDLE_SECTION_GLYPHS = {
   })),
 } as Record<number, ScoreGlyph[]>;
 
-const LIFE_NO_CAPO_MIDDLE_SECTION_GLYPHS = {
-  ...LIFE_NO_CAPO_LEAD_GLYPHS,
-  ...Object.fromEntries(Array.from({ length: 16 }, (_, index) => {
-    const measure = 66 + index;
-    return [measure, LIFE_NO_CAPO_MIDDLE_GLYPHS[measure] ?? []];
-  })),
-} as Record<number, ScoreGlyph[]>;
-
-const LIFE_NO_CAPO_LEAD_NOTES = notesFromGlyphs(LIFE_NO_CAPO_LEAD_GLYPHS, "life-lead-no-capo");
 const LIFE_MIDDLE_SECTION_NOTES = notesFromGlyphs(LIFE_MIDDLE_SECTION_GLYPHS, "life-middle-section");
-const LIFE_NO_CAPO_MIDDLE_SECTION_NOTES = notesFromGlyphs(LIFE_NO_CAPO_MIDDLE_SECTION_GLYPHS, "life-middle-section-no-capo");
 
 function glyphsForTrack(
   songId: SongId,
   trackId: TrackId,
   measure: number,
-  noCapoLifeLead = false,
   lifeLeadSectionMode: LifeLeadSectionMode = "original",
 ) {
   if (songId === "life-over" && trackId === "lead" && lifeLeadSectionMode === "middle" && measure >= 66 && measure <= 81) {
-    return noCapoLifeLead
-      ? LIFE_NO_CAPO_MIDDLE_GLYPHS[measure] ?? []
-      : LIFE_OVER_MIDDLE_GLYPHS[measure] ?? [];
-  }
-  if (noCapoLifeLead && songId === "life-over" && trackId === "lead") {
-    return LIFE_NO_CAPO_LEAD_GLYPHS[measure] ?? [];
+    return LIFE_OVER_MIDDLE_GLYPHS[measure] ?? [];
   }
   return AUDITED_GLYPHS[songId]?.[trackId]?.[measure] ?? [];
 }
@@ -955,16 +910,38 @@ function glyphsForTrack(
 function notesForTrack(
   songId: SongId,
   trackId: TrackId,
-  noCapoLifeLead = false,
   lifeLeadSectionMode: LifeLeadSectionMode = "original",
 ) {
   if (songId === "life-over" && trackId === "lead" && lifeLeadSectionMode === "middle") {
-    return noCapoLifeLead ? LIFE_NO_CAPO_MIDDLE_SECTION_NOTES : LIFE_MIDDLE_SECTION_NOTES;
-  }
-  if (noCapoLifeLead && songId === "life-over" && trackId === "lead") {
-    return LIFE_NO_CAPO_LEAD_NOTES;
+    return LIFE_MIDDLE_SECTION_NOTES;
   }
   return AUDITED_NOTES[songId]?.[trackId] ?? [];
+}
+
+function migrateLearnedNotesToPhrases(
+  songId: SongId,
+  trackId: TrackId,
+  lifeLeadSectionMode: LifeLeadSectionMode,
+  learnedNoteIds: Set<string>,
+) {
+  if (learnedNoteIds.size === 0) return [];
+  const song = SONGS[songId];
+  const glyphRecord = Object.fromEntries(Array.from({ length: song.totalMeasures }, (_, index) => {
+    const measure = index + 1;
+    return [measure, glyphsForTrack(songId, trackId, measure, lifeLeadSectionMode)];
+  })) as Record<number, ScoreGlyph[]>;
+  const phrases = buildPhraseInstances(
+    glyphRecord,
+    song.map.map(({ label, start, end, phraseMeasures }) => ({ label, start, end, phraseMeasures })),
+    songId,
+  );
+  const notes = notesForTrack(songId, trackId, lifeLeadSectionMode);
+  return [...new Set(phrases.filter((phrase) => {
+    const phraseNotes = notes.filter((note) => (
+      note.measure >= phrase.startMeasure && note.measure <= phrase.endMeasure
+    ));
+    return phraseNotes.length > 0 && phraseNotes.every((note) => learnedNoteIds.has(note.id));
+  }).map((phrase) => phrase.canonicalId))];
 }
 
 function scoreAuditStatus(songId: SongId, trackId: TrackId, measure: number) {
@@ -990,10 +967,9 @@ function scorePlaybackEvents(
   songId: SongId,
   trackId: TrackId,
   measure: number,
-  noCapoLifeLead = false,
   lifeLeadSectionMode: LifeLeadSectionMode = "original",
 ): PlaybackEvent[] {
-  const glyphs = glyphsForTrack(songId, trackId, measure, noCapoLifeLead, lifeLeadSectionMode);
+  const glyphs = glyphsForTrack(songId, trackId, measure, lifeLeadSectionMode);
   if (glyphs) {
     const measureSteps = stepsForMeasure(measure, SONGS[songId].meterMap);
     const baseEvents = glyphs.flatMap((glyph) => {
@@ -1015,7 +991,7 @@ function scorePlaybackEvents(
       });
     });
     const nextMeasure = measure + 1;
-    const nextGlyphs = glyphsForTrack(songId, trackId, nextMeasure, noCapoLifeLead, lifeLeadSectionMode);
+    const nextGlyphs = glyphsForTrack(songId, trackId, nextMeasure, lifeLeadSectionMode);
     const nextMeasureSteps = stepsForMeasure(nextMeasure, SONGS[songId].meterMap);
     return baseEvents.map((event) => {
       const hasLaterMatchingAttack = baseEvents.some((candidate) => (
@@ -1341,7 +1317,7 @@ function ScoreMeasure({
     && lifeLeadSectionMode === "middle"
     && measure >= 66
     && measure <= 81;
-  const proceduralGlyphs = glyphsForTrack(songId, trackId, measure, noCapoLifeLead, lifeLeadSectionMode);
+  const proceduralGlyphs = glyphsForTrack(songId, trackId, measure, lifeLeadSectionMode);
   const proceduralLabel = noCapoLifeLead
     ? usesMiddleStaff ? "LEAD · 中央段 · CAPO 0" : "LEAD · CAPO 0"
     : usesMiddleStaff ? "LEAD · 中央段"
@@ -1437,6 +1413,7 @@ export function GuitarTrainer() {
   const [metronome, setMetronome] = useState(true);
   const [videoSync, setVideoSync] = useState(true);
   const [learnedIds, setLearnedIds] = useState<Set<string>>(new Set());
+  const [learnedPhraseIds, setLearnedPhraseIds] = useState<Set<string>>(new Set());
   const [inputEnabled, setInputEnabled] = useState(false);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
@@ -1452,7 +1429,6 @@ export function GuitarTrainer() {
   const [guidedMode, setGuidedMode] = useState(false);
   const [guidedWaiting, setGuidedWaiting] = useState(false);
   const [auditNotes, setAuditNotes] = useState<Record<string, string>>({});
-  const [pitchCompareLabel, setPitchCompareLabel] = useState("");
   const audioContextRef = useRef<AudioContext | null>(null);
   const timerIdsRef = useRef<number[]>([]);
   const activeNodesRef = useRef<Set<OscillatorNode>>(new Set());
@@ -1460,8 +1436,6 @@ export function GuitarTrainer() {
   const playbackProgressTimerRef = useRef<number | null>(null);
   const videoSyncTimerRef = useRef<number | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const videoDetailsRef = useRef<HTMLDetailsElement | null>(null);
-  const originalPitchCueRef = useRef(false);
   const inputStreamRef = useRef<MediaStream | null>(null);
   const inputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const inputFilterRef = useRef<BiquadFilterNode | null>(null);
@@ -1481,6 +1455,7 @@ export function GuitarTrainer() {
           timelineMeasure?: number;
           timelineStep?: number;
           learnedIds?: string[];
+          learnedPhraseIds?: string[];
           countIn?: boolean;
           metronome?: boolean;
           videoSync?: boolean;
@@ -1492,12 +1467,15 @@ export function GuitarTrainer() {
           auditNotes?: Record<string, string>;
         };
         window.queueMicrotask(() => {
-          if (saved.songId && SONGS[saved.songId]) setSongId(saved.songId);
-          if (saved.trackId === "third") setTrackId("lead");
-          else if (saved.trackId === "lead" || saved.trackId === "backing") setTrackId(saved.trackId);
-          if (saved.lifeLeadSectionMode === "original" || saved.lifeLeadSectionMode === "middle") {
-            setLifeLeadSectionMode(saved.lifeLeadSectionMode);
-          }
+          const nextSongId = saved.songId && SONGS[saved.songId] ? saved.songId : "life-over";
+          const requestedTrackId = saved.trackId === "third" ? "lead" : saved.trackId;
+          const nextTrackId = requestedTrackId && SONGS[nextSongId].tracks[requestedTrackId]
+            ? requestedTrackId
+            : SONGS[nextSongId].defaultTrack;
+          const nextLifeLeadSectionMode = saved.lifeLeadSectionMode === "middle" ? "middle" : "original";
+          setSongId(nextSongId);
+          setTrackId(nextTrackId);
+          setLifeLeadSectionMode(nextLifeLeadSectionMode);
           if (typeof saved.bpm === "number") setBpm(saved.bpm);
           if (typeof saved.timelineMeasure === "number") {
             restoredMeasureRef.current = saved.timelineMeasure;
@@ -1505,7 +1483,17 @@ export function GuitarTrainer() {
             setTimelineStep(typeof saved.timelineStep === "number" ? saved.timelineStep : 0);
             setScorePageIndex(Math.floor((saved.timelineMeasure - 1) / 4));
           }
-          if (Array.isArray(saved.learnedIds)) setLearnedIds(new Set(saved.learnedIds));
+          const legacyLearnedIds = new Set(saved.learnedIds ?? []);
+          setLearnedIds(legacyLearnedIds);
+          setLearnedPhraseIds(new Set([
+            ...(saved.learnedPhraseIds ?? []),
+            ...migrateLearnedNotesToPhrases(
+              nextSongId,
+              nextTrackId,
+              nextLifeLeadSectionMode,
+              legacyLearnedIds,
+            ),
+          ]));
           if (typeof saved.countIn === "boolean") setCountIn(saved.countIn);
           if (typeof saved.metronome === "boolean") setMetronome(saved.metronome);
           if (typeof saved.videoSync === "boolean") setVideoSync(saved.videoSync);
@@ -1535,6 +1523,7 @@ export function GuitarTrainer() {
       timelineMeasure,
       timelineStep,
       learnedIds: [...learnedIds],
+      learnedPhraseIds: [...learnedPhraseIds],
       countIn,
       metronome,
       videoSync,
@@ -1545,14 +1534,37 @@ export function GuitarTrainer() {
       loopEnabled,
       auditNotes,
     }));
-  }, [auditNotes, bpm, countIn, inputSensitivity, learnedIds, lifeLeadSectionMode, loopEnabled, loopEnd, loopStart, metronome, songId, timelineMeasure, timelineStep, trackId, tunerString, videoSync]);
+  }, [auditNotes, bpm, countIn, inputSensitivity, learnedIds, learnedPhraseIds, lifeLeadSectionMode, loopEnabled, loopEnd, loopStart, metronome, songId, timelineMeasure, timelineStep, trackId, tunerString, videoSync]);
 
   const song = SONGS[songId];
   const effectiveTrackId = song.tracks[trackId] ? trackId : song.defaultTrack;
   const track = trackFor(song, effectiveTrackId);
   const noCapoLifeLead = medleyMode && songId === "life-over" && effectiveTrackId === "lead";
-  const effectiveCapo = noCapoLifeLead ? 0 : song.capo;
-  const activeNotes = notesForTrack(songId, effectiveTrackId, noCapoLifeLead, lifeLeadSectionMode);
+  // The source TAB uses absolute neck fret numbers. Capo 3 is an
+  // installation instruction, not an offset to add to those numbers.
+  const effectiveCapo = 0;
+  const activeNotes = notesForTrack(songId, effectiveTrackId, lifeLeadSectionMode);
+  const activeGlyphRecord = useMemo(() => Object.fromEntries(
+    Array.from({ length: song.totalMeasures }, (_, index) => {
+      const measure = index + 1;
+      return [measure, glyphsForTrack(songId, effectiveTrackId, measure, lifeLeadSectionMode)];
+    }),
+  ) as Record<number, ScoreGlyph[]>, [effectiveTrackId, lifeLeadSectionMode, song.totalMeasures, songId]);
+  const phraseScope = songId;
+  const activePhraseInstances = useMemo(() => buildPhraseInstances(
+    activeGlyphRecord,
+    song.map.map(({ label, start, end, phraseMeasures }) => ({ label, start, end, phraseMeasures })),
+    phraseScope,
+  ), [activeGlyphRecord, phraseScope, song.map]);
+  const activePhraseGroups = useMemo(() => {
+    const groups = new Map<string, typeof activePhraseInstances>();
+    for (const phrase of activePhraseInstances) {
+      const group = groups.get(phrase.canonicalId) ?? [];
+      group.push(phrase);
+      groups.set(phrase.canonicalId, group);
+    }
+    return [...groups.entries()].map(([canonicalId, instances]) => ({ canonicalId, instances }));
+  }, [activePhraseInstances]);
   const activeScorePages = scorePages(song.totalMeasures);
 
   useEffect(() => {
@@ -1580,21 +1592,32 @@ export function GuitarTrainer() {
   }, [activeNotes]);
 
   const currentNote = activeNotes[Math.min(noteIndex, activeNotes.length - 1)];
-  const writtenNote = songId === "life-over"
-    ? notesForTrack(songId, effectiveTrackId, false, lifeLeadSectionMode).find((note) => (
-      note.measure === currentNote.measure && note.tick === currentNote.tick
-    )) ?? currentNote
-    : currentNote;
-  const openCapoFrequency = frequencyFor(writtenNote.stringNo, writtenNote.fret, 0);
-  const judgedCapoFrequency = frequencyFor(writtenNote.stringNo, writtenNote.fret, SONGS["life-over"].capo);
+  const currentPhraseIndex = Math.max(0, activePhraseInstances.findIndex((phrase) => (
+    currentNote.measure >= phrase.startMeasure && currentNote.measure <= phrase.endMeasure
+  )));
+  const currentPhrase = activePhraseInstances[currentPhraseIndex];
+  const currentPhraseNotes = useMemo(() => activeNotes.filter((note) => (
+    note.measure >= currentPhrase.startMeasure && note.measure <= currentPhrase.endMeasure
+  )), [activeNotes, currentPhrase.endMeasure, currentPhrase.startMeasure]);
+  const currentPhraseGroup = activePhraseGroups.find((group) => group.canonicalId === currentPhrase.canonicalId)!;
+  const phraseMeasureLabel = currentPhrase.startMeasure === currentPhrase.endMeasure
+    ? `${currentPhrase.startMeasure}小節`
+    : `${currentPhrase.startMeasure}–${currentPhrase.endMeasure}小節`;
+  const repeatedMeasureLabels = currentPhraseGroup.instances
+    .filter((phrase) => phrase.id !== currentPhrase.id)
+    .map((phrase) => phrase.startMeasure === phrase.endMeasure
+      ? `${phrase.startMeasure}`
+      : `${phrase.startMeasure}–${phrase.endMeasure}`);
+
   const targetFrequency = frequencyFor(currentNote.stringNo, currentNote.fret, effectiveCapo);
   const selectedTunerString = tunerString === "auto"
     ? null
     : TUNER_STRINGS.find((candidate) => candidate.stringNo === tunerString) ?? null;
   const tunerDetectionTarget = selectedTunerString?.frequency;
-  const activeNoteIds = new Set(activeNotes.map((note) => note.id));
-  const learnedForSong = [...learnedIds].filter((id) => activeNoteIds.has(id)).length;
-  const learnedProgress = Math.round((learnedForSong / activeNotes.length) * 100);
+  const learnedForSong = activePhraseGroups.filter((group) => learnedPhraseIds.has(group.canonicalId)).length;
+  const learnedProgress = activePhraseGroups.length === 0
+    ? 0
+    : Math.round((learnedForSong / activePhraseGroups.length) * 100);
   const fretStart = Math.max(0, currentNote.fret >= 10 ? currentNote.fret - 1 : currentNote.fret - 2);
   const fretRange = Array.from({ length: 5 }, (_, index) => fretStart + index);
   const tunerOffset = clamp(detectedCents ?? 0, -50, 50) * 1.4;
@@ -1815,6 +1838,9 @@ export function GuitarTrainer() {
         if (inputMode === "judge" && (autoAdvance || guidedMode) && correctFrames >= 8 && !advanced) {
           advanced = true;
           setLearnedIds((previous) => new Set(previous).add(currentNote.id));
+          if (currentPhraseNotes.every((note) => note.id === currentNote.id || learnedIds.has(note.id))) {
+            setLearnedPhraseIds((previous) => new Set(previous).add(currentPhrase.canonicalId));
+          }
           if (noteIndex < activeNotes.length - 1) {
             const nextIndex = noteIndex + 1;
             const nextNote = activeNotes[nextIndex];
@@ -1871,7 +1897,7 @@ export function GuitarTrainer() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [activeNotes, autoAdvance, bpm, currentNote.fret, currentNote.id, currentNote.measure, currentNote.stringNo, currentNote.tick, guidedMode, guidedWaiting, inputEnabled, inputMode, inputSensitivity, moveToNoteIndex, noteIndex, playing, selectedDeviceId, sendVideoCommand, song.originalBpm, targetFrequency, track.videoStartSeconds, tunerDetectionTarget]);
+  }, [activeNotes, autoAdvance, bpm, currentNote.fret, currentNote.id, currentNote.measure, currentNote.stringNo, currentNote.tick, currentPhrase.canonicalId, currentPhraseNotes, guidedMode, guidedWaiting, inputEnabled, inputMode, inputSensitivity, learnedIds, moveToNoteIndex, noteIndex, playing, selectedDeviceId, sendVideoCommand, song.originalBpm, targetFrequency, track.videoStartSeconds, tunerDetectionTarget]);
 
   function getAudioContext() {
     if (!audioContextRef.current) {
@@ -2032,43 +2058,6 @@ export function GuitarTrainer() {
     schedulePluck(context, currentNote.stringNo, currentNote.fret, effectiveCapo, context.currentTime + 0.04, 0.7);
   }
 
-  function playWrittenPitch(capo: 0 | 3) {
-    const context = getAudioContext();
-    void context.resume();
-    const frequency = capo === 0 ? openCapoFrequency : judgedCapoFrequency;
-    setPitchCompareLabel(capo === 0
-      ? `カポなし ${noteName(frequency)}`
-      : `カポ3判定 ${noteName(frequency)}`);
-    schedulePluck(context, writtenNote.stringNo, writtenNote.fret, capo, context.currentTime + 0.04, 0.95);
-  }
-
-  function playWrittenPitchBoth() {
-    const context = getAudioContext();
-    void context.resume();
-    setPitchCompareLabel(`先にカポなし ${noteName(openCapoFrequency)}、つづいてカポ3 ${noteName(judgedCapoFrequency)}`);
-    schedulePluck(context, writtenNote.stringNo, writtenNote.fret, 0, context.currentTime + 0.04, 0.9);
-    schedulePluck(context, writtenNote.stringNo, writtenNote.fret, 3, context.currentTime + 1.2, 0.9);
-  }
-
-  function cueOriginalPerformanceAtNote() {
-    if (songId !== "life-over") return;
-    stopPlayback();
-    const noteStep = (currentNote.tick * 2 / 16) * stepsForMeasure(currentNote.measure, song.meterMap);
-    const seconds = Math.max(0, Math.floor(videoTimeForPosition(
-      0,
-      song.originalBpm,
-      currentNote.measure,
-      noteStep,
-      song.meterMap,
-    )));
-    originalPitchCueRef.current = true;
-    if (videoDetailsRef.current) videoDetailsRef.current.open = true;
-    setVideoStart(seconds);
-    setVideoAutoplay(true);
-    setVideoNonce((nonce) => nonce + 1);
-    setPitchCompareLabel(`${currentNote.measure}小節の演奏（0:00側）を原速で再生`);
-  }
-
   function scheduleRange(
     startMeasure: number,
     endMeasure: number,
@@ -2082,24 +2071,22 @@ export function GuitarTrainer() {
       lifeLeadSectionMode?: LifeLeadSectionMode;
       medleyPhase?: MedleyPhase;
       countIn?: boolean;
+      videoSync?: boolean;
     } = {},
   ) {
     const scheduledSongId = options.songId ?? songId;
     const scheduledTrackId = options.trackId ?? trackId;
     const scheduledSong = SONGS[scheduledSongId];
     const scheduledTrack = trackFor(scheduledSong, scheduledTrackId);
-    const scheduledCapo = options.capo ?? scheduledSong.capo;
-    const scheduledNoCapoLifeLead = scheduledSongId === "life-over"
-      && scheduledTrackId === "lead"
-      && scheduledCapo === 0;
+    const scheduledCapo = options.capo ?? (scheduledSongId === "life-over" ? 0 : scheduledSong.capo);
     const scheduledLifeLeadSectionMode = options.lifeLeadSectionMode ?? lifeLeadSectionMode;
     const scheduledNotes = notesForTrack(
       scheduledSongId,
       scheduledTrackId,
-      scheduledNoCapoLifeLead,
       scheduledLifeLeadSectionMode,
     );
     const useCountIn = options.countIn ?? countIn;
+    const useVideoSync = options.videoSync ?? videoSync;
     const context = getAudioContext();
     void context.resume();
     const secondsPerStep = 15 / nextBpm;
@@ -2124,7 +2111,7 @@ export function GuitarTrainer() {
     setPausedSession(null);
     setPlaybackProgressSteps(boundedPosition);
 
-    if (videoSync && !options.medleyPhase) {
+    if (useVideoSync && !options.medleyPhase) {
       const scorePosition = Math.max(0, boundedPosition);
       const position = measurePosition(startMeasure, endMeasure, scorePosition, scheduledSong.meterMap);
       const positionMeasure = position.measure;
@@ -2181,7 +2168,6 @@ export function GuitarTrainer() {
         scheduledSongId,
         scheduledTrackId,
         measure,
-        scheduledNoCapoLifeLead,
         scheduledLifeLeadSectionMode,
       ).forEach((event) => {
         const eventOffset = measureOffset + event.step;
@@ -2216,7 +2202,7 @@ export function GuitarTrainer() {
           setTimelineMeasure(measure);
           setTimelineStep(0);
           setScorePageIndex(Math.floor((measure - 1) / 4));
-          if (videoSync && !options.medleyPhase) {
+          if (useVideoSync && !options.medleyPhase) {
             sendVideoCommand("seekTo", [videoTimeForPosition(scheduledTrack.videoStartSeconds, scheduledSong.originalBpm, measure, 0, scheduledSong.meterMap), true]);
             sendVideoCommand("setPlaybackRate", [nextBpm / scheduledSong.originalBpm]);
           }
@@ -2302,7 +2288,7 @@ export function GuitarTrainer() {
 
   function startMedley(playbackRate = bpm / song.originalBpm) {
     stopPlayback();
-    const lifeBpm = Math.max(50, Math.round(SONGS["life-over"].originalBpm * playbackRate));
+    const lifeBpm = Math.max(MIN_PRACTICE_BPM, Math.round(SONGS["life-over"].originalBpm * playbackRate));
     setMedleySurface("life-over", "lead", lifeBpm, "life");
     scheduleRange(
       1,
@@ -2317,7 +2303,7 @@ export function GuitarTrainer() {
   function selectMedleyMode() {
     const playbackRate = bpm / song.originalBpm;
     stopPlayback();
-    const lifeBpm = Math.max(50, Math.round(SONGS["life-over"].originalBpm * playbackRate));
+    const lifeBpm = Math.max(MIN_PRACTICE_BPM, Math.round(SONGS["life-over"].originalBpm * playbackRate));
     setMedleySurface("life-over", "lead", lifeBpm, "life");
   }
 
@@ -2414,15 +2400,22 @@ export function GuitarTrainer() {
   }
 
   function changeBpm(nextBpm: number) {
-    const effectiveBpm = videoSync && !medleyMode
+    const boundedBpm = Math.round(clamp(nextBpm, MIN_PRACTICE_BPM, song.originalBpm));
+    const supportsVideoSync = boundedBpm / song.originalBpm >= 0.25;
+    const useVideoSync = videoSync && !medleyMode && supportsVideoSync;
+    const effectiveBpm = useVideoSync
       ? Math.round(song.originalBpm * nearestPlaybackRate(
-          nextBpm / song.originalBpm,
+          boundedBpm / song.originalBpm,
           [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
         ))
-      : nextBpm;
+      : boundedBpm;
     const session = playbackSessionRef.current;
+    if (videoSync && !supportsVideoSync) {
+      setVideoSync(false);
+      sendVideoCommand("pauseVideo");
+    }
     setBpm(effectiveBpm);
-    sendVideoCommand("setPlaybackRate", [effectiveBpm / song.originalBpm]);
+    if (useVideoSync) sendVideoCommand("setPlaybackRate", [effectiveBpm / song.originalBpm]);
     if (!session) {
       if (pausedSession) setPausedSession({ ...pausedSession, bpm: effectiveBpm });
       return;
@@ -2449,17 +2442,26 @@ export function GuitarTrainer() {
         lifeLeadSectionMode: session.lifeLeadSectionMode,
         medleyPhase: session.medleyPhase,
         countIn: false,
+        videoSync: useVideoSync,
       },
     );
   }
 
-  function playMeasure() {
-    playRange(currentNote.measure, currentNote.measure, `${currentNote.measure}小節`);
+  function playCurrentPhrase() {
+    playRange(currentPhrase.startMeasure, currentPhrase.endMeasure, `フレーズ ${phraseMeasureLabel}`);
   }
 
-  function goBy(delta: number) {
+  function goByPhrase(delta: number) {
     stopPlayback();
-    moveToNoteIndex(noteIndex + delta);
+    const nextPhraseIndex = Math.min(
+      activePhraseInstances.length - 1,
+      Math.max(0, currentPhraseIndex + delta),
+    );
+    const nextPhrase = activePhraseInstances[nextPhraseIndex];
+    const nextNoteIndex = activeNotes.findIndex((note) => (
+      note.measure >= nextPhrase.startMeasure && note.measure <= nextPhrase.endMeasure
+    ));
+    if (nextNoteIndex >= 0) moveToNoteIndex(nextNoteIndex);
   }
 
   function jumpScoreTo(measure: number) {
@@ -2530,11 +2532,11 @@ export function GuitarTrainer() {
     setVideoNonce((nonce) => nonce + 1);
   }
 
-  function toggleLearned() {
-    setLearnedIds((previous) => {
+  function togglePhraseLearned() {
+    setLearnedPhraseIds((previous) => {
       const next = new Set(previous);
-      if (next.has(currentNote.id)) next.delete(currentNote.id);
-      else next.add(currentNote.id);
+      if (next.has(currentPhrase.canonicalId)) next.delete(currentPhrase.canonicalId);
+      else next.add(currentPhrase.canonicalId);
       return next;
     });
   }
@@ -2582,7 +2584,7 @@ export function GuitarTrainer() {
   function switchLifeLeadSection(nextMode: LifeLeadSectionMode) {
     if (nextMode === lifeLeadSectionMode) return;
     stopPlayback();
-    const nextNotes = notesForTrack(songId, effectiveTrackId, noCapoLifeLead, nextMode);
+    const nextNotes = notesForTrack(songId, effectiveTrackId, nextMode);
     const nextIndex = nextNotes.findIndex((note) => note.measure >= timelineMeasure);
     setLifeLeadSectionMode(nextMode);
     setNoteIndex(nextIndex >= 0 ? nextIndex : Math.max(0, nextNotes.length - 1));
@@ -2766,7 +2768,7 @@ export function GuitarTrainer() {
 
       <div className="mx-auto max-w-[96rem] px-4 py-4 sm:px-6 lg:px-8">
         <div className="min-w-0 space-y-4">
-          <details className="overflow-hidden rounded-xl border border-stone-800 bg-stone-900" aria-labelledby="video-title" ref={videoDetailsRef}>
+          <details className="overflow-hidden rounded-xl border border-stone-800 bg-stone-900" aria-labelledby="video-title">
             <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-3 px-4 py-2 font-black">
               <span id="video-title">原曲動画</span>
               <span className="text-xs text-lime-300">{activeMeasure}小節から開く</span>
@@ -2786,9 +2788,7 @@ export function GuitarTrainer() {
                 key={`${videoStart}-${videoNonce}`}
                 loading="lazy"
                 onLoad={() => {
-                  const originalCue = originalPitchCueRef.current;
-                  originalPitchCueRef.current = false;
-                  sendVideoCommand("setPlaybackRate", [originalCue ? 1 : bpm / song.originalBpm]);
+                  sendVideoCommand("setPlaybackRate", [bpm / song.originalBpm]);
                   if (videoAutoplay) sendVideoCommand("playVideo");
                 }}
                 ref={iframeRef}
@@ -2801,9 +2801,9 @@ export function GuitarTrainer() {
           <section className="rounded-xl border border-stone-800 bg-stone-900 p-3 sm:p-4" aria-labelledby="tempo-title">
             <div className="grid gap-3 lg:grid-cols-[auto_minmax(12rem,1fr)_auto_auto] lg:items-center">
               <h2 id="tempo-title" className="text-sm font-black">速度 <span className="ml-2 text-xl text-lime-300 tabular-nums">{bpm}</span><span className="ml-1 text-xs text-stone-500">BPM</span></h2>
-              <input className="min-h-10 w-full" type="range" min="50" max={song.originalBpm} step="1" value={bpm} onChange={(event) => changeBpm(Number(event.target.value))} aria-label="練習テンポ" />
-              <div className="grid grid-cols-3 gap-1">
-              {[0.5, 0.75, 1].map((ratio) => {
+              <input className="min-h-10 w-full" type="range" min={MIN_PRACTICE_BPM} max={song.originalBpm} step="1" value={bpm} onChange={(event) => changeBpm(Number(event.target.value))} aria-label="練習テンポ" />
+              <div className="grid grid-cols-4 gap-1">
+              {[0.25, 0.5, 0.75, 1].map((ratio) => {
                 const value = Math.round(song.originalBpm * ratio);
                 return (
                 <button className="min-h-10 rounded-lg border border-stone-700 bg-stone-950 px-3 text-xs font-bold data-[active=true]:border-lime-300 data-[active=true]:text-lime-300" data-active={bpm === value} type="button" onClick={() => changeBpm(value)} key={ratio}>{Math.round(ratio * 100)}%</button>
@@ -2821,6 +2821,7 @@ export function GuitarTrainer() {
               </label>
               </div>
             </div>
+            <p className="mt-1 text-pretty text-xs text-stone-500">25 BPMまで落とせます。原曲の25%より遅くすると、動画同期は自動でOFFになります。</p>
           </section>
 
           <section className="rounded-xl border border-stone-800 bg-stone-900 p-3 sm:p-4" aria-labelledby="song-map-title">
@@ -2929,31 +2930,11 @@ export function GuitarTrainer() {
               </div>}
 
               {songId === "life-over" && (
-                <div className="mt-3 rounded-lg border border-amber-400/50 bg-amber-950/25 p-3" aria-label="カポの実音を原曲と聴き比べ">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="text-xs font-black text-amber-200">カポの実音を原曲と聴き比べ</p>
-                    <p className="text-[0.65rem] font-bold text-stone-500 tabular-nums">
-                      TAB {writtenNote.stringNo}弦 {writtenNote.fret}
-                    </p>
-                  </div>
+                <div className="mt-3 rounded-lg border border-lime-300/40 bg-lime-950/20 px-3 py-2" aria-label="人生オーバーのTAB判定ルール">
+                  <p className="text-xs font-black text-lime-200">TAB数字を実フレットとして判定</p>
                   <p className="mt-1 text-pretty text-[0.7rem] font-bold text-stone-400">
-                    今の判定はカポ3側です。原音に近いほうを、先頭の演奏（0:00）と突き合わせてください。Guitar Pro の MIDI は使いません。
+                    カポ3は装着案内です。TAB数字には加算せず、現在の狙いは {noteName(targetFrequency)} です。
                   </p>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <button className="min-h-11 rounded-lg border border-stone-600 bg-stone-950 px-2 text-xs font-black hover:border-lime-300" onClick={() => playWrittenPitch(0)} type="button">
-                      カポなし {noteName(openCapoFrequency)}
-                    </button>
-                    <button className="min-h-11 rounded-lg border border-stone-600 bg-stone-950 px-2 text-xs font-black hover:border-lime-300" onClick={() => playWrittenPitch(3)} type="button">
-                      カポ3判定 {noteName(judgedCapoFrequency)}
-                    </button>
-                    <button className="min-h-11 rounded-lg bg-lime-300 px-2 text-xs font-black text-lime-950" onClick={playWrittenPitchBoth} type="button">
-                      交互に再生
-                    </button>
-                    <button className="min-h-11 rounded-lg border border-amber-400/70 bg-stone-950 px-2 text-xs font-black text-amber-100 hover:border-amber-200" onClick={cueOriginalPerformanceAtNote} type="button">
-                      演奏0:00の同じ拍
-                    </button>
-                  </div>
-                  <p className="mt-2 text-[0.65rem] font-bold text-stone-500" aria-live="polite">{pitchCompareLabel || "先に合成音、つづいて演奏を聴くと比較しやすいです。"}</p>
                 </div>
               )}
 
@@ -3011,11 +2992,6 @@ export function GuitarTrainer() {
                 />
               ))}
             </div>
-            {noCapoLifeLead && selectedScorePage.start <= 116 && selectedScorePage.end >= 116 && (
-              <p className="mt-3 rounded-lg border border-amber-500/60 bg-amber-950/30 px-3 py-2 text-xs font-bold text-amber-200">
-                116小節の「3/AH8」は、3フレットを押さえながら8フレット位置に軽く触れる人工ハーモニクスです。この1音だけAmpero自動判定の対象外です。
-              </p>
-            )}
             <details className="mt-4 rounded-xl border border-stone-700 bg-stone-950 p-4 text-sm text-stone-300">
               <summary className="min-h-6 cursor-pointer font-black text-stone-100">TABの読み方</summary>
               <p className="mt-3 text-pretty leading-6"><strong>上が1弦、下が6弦。</strong> 数字は押さえるフレットです。<span className="font-black tabular-nums">(5)</span> や <span className="font-black tabular-nums">(10)</span> は前の音を伸ばし、もう一度ピッキングしません。<span className="font-black">×</span> はミュート、<span className="font-black">sl.</span> はスライドです。</p>
@@ -3033,7 +3009,7 @@ export function GuitarTrainer() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-bold text-lime-300 tabular-nums">
-                    {trackId === "backing" ? "CHORD ROOT" : "NOTE"} {String(noteIndex + 1).padStart(2, "0")} / {activeNotes.length}
+                    PHRASE {String(currentPhraseIndex + 1).padStart(2, "0")} / {activePhraseInstances.length}
                   </p>
                   <h2 id="current-note-title" className="mt-2 text-balance text-4xl font-black sm:text-5xl" aria-live="polite">
                     {currentNote.stringNo}弦 <span className="text-lime-300 tabular-nums">{currentNote.fret}</span>フレット
@@ -3041,14 +3017,20 @@ export function GuitarTrainer() {
                   <p className="mt-3 text-pretty text-stone-300">
                     {stringDescription(currentNote.stringNo)}。{trackId === "backing" ? "コード判定用のルート音" : "TABの単音"}として{currentNote.fret}フレットを狙います。
                   </p>
+                  <p className="mt-3 text-sm font-bold text-stone-400">
+                    {phraseMeasureLabel} · {currentPhraseNotes.length}音
+                    {repeatedMeasureLabels.length > 0
+                      ? ` · 同じフレーズ: ${repeatedMeasureLabels.join("、")}小節`
+                      : " · この場所だけのフレーズ"}
+                  </p>
                 </div>
                 <button
                   className="min-h-11 rounded-xl border border-stone-600 bg-stone-800 px-4 py-2.5 text-sm font-bold text-stone-100 hover:bg-stone-700"
                   type="button"
-                  onClick={toggleLearned}
-                  aria-pressed={learnedIds.has(currentNote.id)}
+                  onClick={togglePhraseLearned}
+                  aria-pressed={learnedPhraseIds.has(currentPhrase.canonicalId)}
                 >
-                  {learnedIds.has(currentNote.id) ? "✓ 覚えた" : "できた！を付ける"}
+                  {learnedPhraseIds.has(currentPhrase.canonicalId) ? "✓ 覚えたフレーズ" : "できた！を付ける"}
                 </button>
               </div>
 
@@ -3092,23 +3074,27 @@ export function GuitarTrainer() {
                 </div>
                 <div className="rounded-xl bg-stone-800 p-4">
                   <p className="text-xs font-bold text-stone-500">実際のギター上では</p>
-                  <p className="mt-2 font-bold tabular-nums">カポ{effectiveCapo} + TAB {currentNote.fret} = {currentNote.fret + effectiveCapo}フレット位置</p>
+                  <p className="mt-2 font-bold tabular-nums">
+                    {songId === "life-over"
+                      ? `TAB ${currentNote.fret} = ネック上の${currentNote.fret}フレット`
+                      : `TAB ${currentNote.fret} = ${currentNote.fret}フレット位置`}
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="grid gap-4 bg-stone-800/50 p-4 sm:grid-cols-[1fr_auto] sm:items-center sm:p-5">
               <div className="grid grid-cols-3 gap-2">
-                <button className="min-h-12 rounded-xl border border-stone-600 bg-stone-900 px-3 font-bold disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={() => goBy(-1)} disabled={noteIndex === 0}>← 前の音</button>
+                <button className="min-h-12 rounded-xl border border-stone-600 bg-stone-900 px-3 font-bold disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={() => goByPhrase(-1)} disabled={currentPhraseIndex === 0}>← 前のフレーズ</button>
                 <button className="min-h-12 rounded-xl bg-lime-300 px-3 font-black text-lime-950 hover:bg-lime-200" type="button" onClick={playCurrentNote}>今の判定音</button>
-                <button className="min-h-12 rounded-xl border border-stone-600 bg-stone-900 px-3 font-bold disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={() => goBy(1)} disabled={noteIndex === activeNotes.length - 1}>次の音 →</button>
+                <button className="min-h-12 rounded-xl border border-stone-600 bg-stone-900 px-3 font-bold disabled:cursor-not-allowed disabled:opacity-40" type="button" onClick={() => goByPhrase(1)} disabled={currentPhraseIndex === activePhraseInstances.length - 1}>次のフレーズ →</button>
               </div>
               <button
                 className="min-h-12 rounded-xl border border-lime-300 px-5 font-black text-lime-300 hover:bg-lime-300 hover:text-lime-950"
                 type="button"
-                onClick={playing ? stopPlayback : playMeasure}
+                onClick={playing ? stopPlayback : playCurrentPhrase}
               >
-                {playing ? "■ 停止" : `▶ ${currentNote.measure}小節を再生`}
+                {playing ? "■ 停止" : `▶ ${phraseMeasureLabel}を再生`}
               </button>
             </div>
           </section>
@@ -3149,7 +3135,7 @@ export function GuitarTrainer() {
               </li>
               <li className="grid grid-cols-[2rem_1fr] gap-3">
                 <span className="flex size-8 items-center justify-center rounded-full bg-stone-800 font-black text-stone-200 tabular-nums">2</span>
-                <div><h3 className="font-black">数字はフレット</h3><p className="mt-1 text-pretty text-sm text-stone-400">「7」ならカポから7つ先。数字のある弦だけをピッキングします。</p></div>
+                <div><h3 className="font-black">数字は実フレット</h3><p className="mt-1 text-pretty text-sm text-stone-400">「7」ならネック上の7フレット。カポ番号を足さず、数字のある弦だけをピッキングします。</p></div>
               </li>
               <li className="grid grid-cols-[2rem_1fr] gap-3">
                 <span className="flex size-8 items-center justify-center rounded-full bg-stone-800 font-black text-stone-200 tabular-nums">3</span>
@@ -3160,13 +3146,13 @@ export function GuitarTrainer() {
 
           <section className="rounded-xl border border-stone-800 bg-stone-950 p-5" aria-labelledby="progress-title">
             <div className="flex items-end justify-between gap-4">
-              <div><p className="text-sm font-bold text-lime-300">TODAY</p><h2 id="progress-title" className="mt-1 text-balance text-xl font-black">覚えた音</h2></div>
-              <p className="text-2xl font-black tabular-nums">{learnedForSong}<span className="text-sm text-stone-500"> / {activeNotes.length}</span></p>
+              <div><p className="text-sm font-bold text-lime-300">TODAY</p><h2 id="progress-title" className="mt-1 text-balance text-xl font-black">覚えたフレーズ</h2></div>
+              <p className="text-2xl font-black tabular-nums">{learnedForSong}<span className="text-sm text-stone-500"> / {activePhraseGroups.length}</span></p>
             </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-800" role="progressbar" aria-label="覚えた音の進捗" aria-valuemin={0} aria-valuemax={activeNotes.length} aria-valuenow={learnedForSong}>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-800" role="progressbar" aria-label="覚えたフレーズの進捗" aria-valuemin={0} aria-valuemax={activePhraseGroups.length} aria-valuenow={learnedForSong}>
               <div className="progress-fill h-full rounded-full bg-lime-300" style={{ "--progress": `${learnedProgress}%` } as React.CSSProperties} />
             </div>
-            <p className="mt-3 text-pretty text-sm text-stone-400">場所を見ずに3回続けて弾けたら「できた！」を付けよう。</p>
+            <p className="mt-3 text-pretty text-sm text-stone-400">フレーズ内の音を順番に判定。場所を見ずに3回続けて弾けたら「できた！」を付けよう。同じTABの反復もまとめて習得済みになります。</p>
           </section>
           </div>
         </details>

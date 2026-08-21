@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   beatsForMeasure,
+  buildPhraseInstances,
   centsBetween,
   detectPitch,
   extendDurationThroughNextMeasureTie,
@@ -11,12 +12,72 @@ import {
   sustainGuitarPart,
   nearestPlaybackRate,
   normalizeLifeOverLeadEighthRun,
+  phraseFingerprint,
   playbackPositionSteps,
   positionToMeasure,
   stepsBeforeMeasure,
   stepsInRange,
   videoTimeForPosition,
 } from "../app/trainer-core.mjs";
+
+test("phrase grouping prefers repeated four- and two-measure patterns", () => {
+  const glyph = (text, slot = 0) => [{ slot, symbols: [{ stringNo: 2, text }] }];
+  const record = {
+    1: glyph("7"), 2: glyph("9"), 3: glyph("10"), 4: glyph("12"),
+    5: glyph("7"), 6: glyph("9"), 7: glyph("10"), 8: glyph("12"),
+    9: glyph("3"), 10: glyph("5"), 11: glyph("3"), 12: glyph("5"),
+    13: glyph("14"),
+    14: [],
+  };
+  const instances = buildPhraseInstances(record, [
+    { label: "chorus", start: 1, end: 8 },
+    { label: "intro", start: 9, end: 12 },
+    { label: "unique", start: 13, end: 14 },
+  ], "test");
+
+  assert.deepEqual(instances.map((phrase) => phrase.measureCount), [4, 4, 2, 2, 1]);
+  assert.equal(instances[0].canonicalId, instances[1].canonicalId);
+  assert.equal(instances[2].canonicalId, instances[3].canonicalId);
+  assert.notEqual(instances[1].canonicalId, instances[2].canonicalId);
+  assert.equal(instances.some((phrase) => phrase.startMeasure === 14), false);
+});
+
+test("phrase fingerprints require exact TAB positions and pitches", () => {
+  const original = { 1: [{ slot: 0, symbols: [{ stringNo: 3, text: "7" }] }] };
+  const transposed = { 1: [{ slot: 0, symbols: [{ stringNo: 3, text: "9" }] }] };
+  const late = { 1: [{ slot: 2, symbols: [{ stringNo: 3, text: "7" }] }] };
+  assert.notEqual(phraseFingerprint(original, 1), phraseFingerprint(transposed, 1));
+  assert.notEqual(phraseFingerprint(original, 1), phraseFingerprint(late, 1));
+});
+
+test("phrase grouping keeps a repeated two-bar motif at its primitive length", () => {
+  const glyph = (text) => [{ slot: 0, symbols: [{ stringNo: 2, text }] }];
+  const record = Object.fromEntries(Array.from({ length: 8 }, (_, index) => [
+    index + 1,
+    glyph(index % 2 === 0 ? "7" : "9"),
+  ]));
+  const instances = buildPhraseInstances(
+    record,
+    [{ label: "intro", start: 1, end: 8 }],
+    "primitive",
+  );
+
+  assert.deepEqual(instances.map((phrase) => phrase.measureCount), [2, 2, 2, 2]);
+  assert.equal(new Set(instances.map((phrase) => phrase.canonicalId)).size, 1);
+});
+
+test("phrase grouping honors a section's authored phrase length", () => {
+  const glyph = (text) => [{ slot: 0, symbols: [{ stringNo: 2, text }] }];
+  const record = Object.fromEntries(["7", "9", "10", "12", "7", "9", "10", "12"]
+    .map((text, index) => [index + 1, glyph(text)]));
+  const instances = buildPhraseInstances(
+    record,
+    [{ label: "intro", start: 1, end: 8, phraseMeasures: 2 }],
+    "authored",
+  );
+
+  assert.deepEqual(instances.map((phrase) => phrase.measureCount), [2, 2, 2, 2]);
+});
 
 test("frequencyFor respects each song's capo instead of assuming capo 3", () => {
   assert.ok(Math.abs(frequencyFor(6, 0, 0) - 82.4069) < 0.001);
@@ -48,7 +109,17 @@ test("playback playhead survives tempo changes and resume", () => {
   assert.equal(positionToMeasure(20, 30, 33), 22);
 });
 
-test("life-over chorus eighth-note runs do not delay the last note", () => {
+test("life-over OCR timing keeps eighth-note runs evenly spaced", () => {
+  const openingPickup = [
+    { slot: 11, symbols: [{ text: "7" }] },
+    { slot: 13, symbols: [{ text: "9" }] },
+    { slot: 14, symbols: [{ text: "7" }] },
+  ];
+  assert.deepEqual(
+    normalizeLifeOverLeadEighthRun(openingPickup).map((glyph) => glyph.slot),
+    [10, 12, 14],
+  );
+
   const glyphs = [0, 2, 4, 6, 8, 10, 12, 15].map((slot) => ({ slot }));
   assert.deepEqual(
     normalizeLifeOverLeadEighthRun(glyphs).map((glyph) => glyph.slot),
