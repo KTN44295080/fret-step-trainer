@@ -1236,9 +1236,16 @@ function ProceduralTabMeasure({
     >
       <div className="flex items-center justify-between border-b border-stone-700 px-3 py-1.5">
         <p className="text-xs font-bold tabular-nums">MEASURE {String(measure).padStart(3, "0")}</p>
-        <p className={cn("text-[0.65rem] font-bold", isMixedMeter ? "text-amber-300" : "text-lime-300")}>
-          {hasNotes ? label.toUpperCase() : "REST"}
-        </p>
+        <div className="flex items-center gap-2">
+          {isMixedMeter && (
+            <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[0.65rem] font-black text-amber-950 tabular-nums">
+              {beats} / 4
+            </span>
+          )}
+          <p className={cn("text-[0.65rem] font-bold", isMixedMeter ? "text-amber-300" : "text-lime-300")}>
+            {hasNotes ? label.toUpperCase() : "REST"}
+          </p>
+        </div>
       </div>
       <div
         className={cn("tab-measure", hasNotes ? "tab-measure-technique" : "tab-measure-rest")}

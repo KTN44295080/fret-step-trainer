@@ -9,6 +9,7 @@
   --text: #fafaf9;
   --accent: #bef264;
   --accent-ink: #1a2e05;
+  --mixed-meter-accent: #fbbf24;
 }
 
 * {
@@ -230,6 +231,11 @@ button.tab-symbol {
   border-color: var(--accent);
   outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
   outline-offset: 2px;
+}
+
+.score-measure[data-playing="true"] > section[data-mixed-meter="true"] {
+  border-color: var(--mixed-meter-accent);
+  outline-color: color-mix(in srgb, var(--mixed-meter-accent) 45%, transparent);
 }
 
 .judge-dock[data-matched="true"] {
