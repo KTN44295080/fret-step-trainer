@@ -1222,6 +1222,24 @@ function ProceduralTabMeasure({
 }) {
   const hasNotes = glyphs.length > 0;
   const isMixedMeter = beats !== 4;
+  const meterTone =
+    beats === 5
+      ? {
+          border: "border-sky-300/40",
+          label: "text-sky-300",
+          badge: "border-sky-300/40 bg-sky-950/60 text-sky-200",
+        }
+      : beats === 6
+        ? {
+            border: "border-rose-300/40",
+            label: "text-rose-300",
+            badge: "border-rose-300/40 bg-rose-950/60 text-rose-200",
+          }
+        : {
+            border: "border-lime-300/50",
+            label: "text-lime-300",
+            badge: "",
+          };
   const measureSteps = beats * 4;
   const displaySlot = (slot: number) => Math.min(measureSteps - 1, Math.round((slot / 16) * measureSteps));
 
@@ -1229,20 +1247,26 @@ function ProceduralTabMeasure({
     <section
       className={cn(
         "overflow-hidden rounded-lg border bg-stone-900",
-        isMixedMeter ? "border-amber-400/50" : "border-lime-300/50",
+        meterTone.border,
       )}
       data-mixed-meter={isMixedMeter}
+      data-beats={beats}
       aria-label={`${measure}小節目、${isMixedMeter ? `4分の${beats}拍子、` : ""}${label}`}
     >
       <div className="flex items-center justify-between border-b border-stone-700 px-3 py-1.5">
         <p className="text-xs font-bold tabular-nums">MEASURE {String(measure).padStart(3, "0")}</p>
         <div className="flex items-center gap-2">
           {isMixedMeter && (
-            <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[0.65rem] font-black text-amber-950 tabular-nums">
+            <span
+              className={cn(
+                "rounded border px-1.5 py-0.5 text-[0.65rem] font-black tabular-nums",
+                meterTone.badge,
+              )}
+            >
               {beats} / 4
             </span>
           )}
-          <p className={cn("text-[0.65rem] font-bold", isMixedMeter ? "text-amber-300" : "text-lime-300")}>
+          <p className={cn("text-[0.65rem] font-bold", meterTone.label)}>
             {hasNotes ? label.toUpperCase() : "REST"}
           </p>
         </div>

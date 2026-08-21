@@ -9,7 +9,8 @@
   --text: #fafaf9;
   --accent: #bef264;
   --accent-ink: #1a2e05;
-  --mixed-meter-accent: #fbbf24;
+  --meter-five-accent: #7dd3fc;
+  --meter-six-accent: #fda4af;
 }
 
 * {
@@ -233,9 +234,14 @@ button.tab-symbol {
   outline-offset: 2px;
 }
 
-.score-measure[data-playing="true"] > section[data-mixed-meter="true"] {
-  border-color: var(--mixed-meter-accent);
-  outline-color: color-mix(in srgb, var(--mixed-meter-accent) 45%, transparent);
+.score-measure[data-playing="true"] > section[data-beats="5"] {
+  border-color: var(--meter-five-accent);
+  outline-color: color-mix(in srgb, var(--meter-five-accent) 35%, transparent);
+}
+
+.score-measure[data-playing="true"] > section[data-beats="6"] {
+  border-color: var(--meter-six-accent);
+  outline-color: color-mix(in srgb, var(--meter-six-accent) 35%, transparent);
 }
 
 .judge-dock[data-matched="true"] {

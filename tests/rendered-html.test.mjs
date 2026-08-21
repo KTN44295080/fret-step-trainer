@@ -263,7 +263,7 @@ test("keeps the four-measure TAB stack compact", async () => {
   assert.match(trainer, /<div className="mt-3 grid gap-2">/);
 });
 
-test("highlights only mixed-meter score measures", async () => {
+test("uses separate low-halation colors for each mixed meter", async () => {
   const [trainer, styles] = await Promise.all([
     readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
@@ -271,13 +271,22 @@ test("highlights only mixed-meter score measures", async () => {
 
   assert.match(trainer, /const isMixedMeter = beats !== 4/);
   assert.match(trainer, /data-mixed-meter=\{isMixedMeter\}/);
-  assert.match(trainer, /isMixedMeter \? "border-amber-400\/50" : "border-lime-300\/50"/);
-  assert.match(trainer, /isMixedMeter \? "text-amber-300" : "text-lime-300"/);
+  assert.match(trainer, /data-beats=\{beats\}/);
+  assert.match(trainer, /border: "border-sky-300\/40"/);
+  assert.match(trainer, /label: "text-sky-300"/);
+  assert.match(trainer, /badge: "border-sky-300\/40 bg-sky-950\/60 text-sky-200"/);
+  assert.match(trainer, /border: "border-rose-300\/40"/);
+  assert.match(trainer, /label: "text-rose-300"/);
+  assert.match(trainer, /badge: "border-rose-300\/40 bg-rose-950\/60 text-rose-200"/);
   assert.match(trainer, /\{beats\} \/ 4/);
-  assert.doesNotMatch(trainer, /bg-amber-950\/30 text-amber-200/);
-  assert.match(styles, /--mixed-meter-accent:\s*#fbbf24/);
-  assert.match(styles, /section\[data-mixed-meter="true"\]/);
-  assert.match(styles, /outline-color:\s*color-mix\(in srgb, var\(--mixed-meter-accent\) 45%, transparent\)/);
+  assert.doesNotMatch(trainer, /isMixedMeter \? "border-amber-400\/50"/);
+  assert.doesNotMatch(trainer, /rounded bg-amber-400 px-1\.5 py-0\.5/);
+  assert.match(styles, /--meter-five-accent:\s*#7dd3fc/);
+  assert.match(styles, /--meter-six-accent:\s*#fda4af/);
+  assert.match(styles, /section\[data-beats="5"\]/);
+  assert.match(styles, /section\[data-beats="6"\]/);
+  assert.match(styles, /outline-color:\s*color-mix\(in srgb, var\(--meter-five-accent\) 35%, transparent\)/);
+  assert.match(styles, /outline-color:\s*color-mix\(in srgb, var\(--meter-six-accent\) 35%, transparent\)/);
 });
 
 test("keeps separate live guitar and click volume faders", async () => {
