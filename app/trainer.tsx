@@ -1220,14 +1220,29 @@ function ProceduralTabMeasure({
   onSeek: (measure: number, step: number) => void;
 }) {
   const hasNotes = glyphs.length > 0;
+  const isMixedMeter = beats !== 4;
   const measureSteps = beats * 4;
   const displaySlot = (slot: number) => Math.min(measureSteps - 1, Math.round((slot / 16) * measureSteps));
 
   return (
-    <section className="overflow-hidden rounded-lg border border-lime-300/50 bg-stone-900" aria-label={`${measure}小節目、${label}`}>
+    <section
+      className={cn(
+        "overflow-hidden rounded-lg border bg-stone-900",
+        isMixedMeter ? "border-amber-400/80" : "border-lime-300/50",
+      )}
+      data-mixed-meter={isMixedMeter}
+      aria-label={`${measure}小節目、${isMixedMeter ? `4分の${beats}拍子、` : ""}${label}`}
+    >
       <div className="flex items-center justify-between border-b border-stone-700 px-3 py-1.5">
         <p className="text-xs font-bold tabular-nums">MEASURE {String(measure).padStart(3, "0")}</p>
-        <p className="text-[0.65rem] font-bold text-lime-300">{hasNotes ? label.toUpperCase() : "REST"}</p>
+        <div className="flex items-center gap-2">
+          {isMixedMeter && (
+            <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[0.65rem] font-black text-amber-950 tabular-nums">
+              {beats} / 4
+            </span>
+          )}
+          <p className="text-[0.65rem] font-bold text-lime-300">{hasNotes ? label.toUpperCase() : "REST"}</p>
+        </div>
       </div>
       <div
         className={cn("tab-measure", hasNotes ? "tab-measure-technique" : "tab-measure-rest")}
@@ -1268,7 +1283,16 @@ function ProceduralTabMeasure({
           </span>
         ))) : <span className="tab-whole-rest" aria-hidden="true">━</span>}
       </div>
-      <div className="grid border-t border-stone-800 px-2 py-1 text-center text-[0.6rem] font-bold text-stone-500" style={{ gridTemplateColumns: `repeat(${beats * 2}, minmax(0, 1fr))` }} aria-hidden="true">
+      <div
+        className={cn(
+          "grid border-t px-2 py-1 text-center text-[0.6rem] font-bold",
+          isMixedMeter
+            ? "border-amber-400/50 bg-amber-950/30 text-amber-200"
+            : "border-stone-800 text-stone-500",
+        )}
+        style={{ gridTemplateColumns: `repeat(${beats * 2}, minmax(0, 1fr))` }}
+        aria-hidden="true"
+      >
         {Array.from({ length: beats }, (_, index) => [String(index + 1), "＆"]).flat().map((beat, index) => <span key={`${measure}-${label}-beat-${index}`}>{beat}</span>)}
       </div>
     </section>
@@ -1411,6 +1435,8 @@ export function GuitarTrainer() {
   const [loopEnabled, setLoopEnabled] = useState(false);
   const [countIn, setCountIn] = useState(true);
   const [metronome, setMetronome] = useState(true);
+  const [guitarVolume, setGuitarVolume] = useState(100);
+  const [clickVolume, setClickVolume] = useState(100);
   const [videoSync, setVideoSync] = useState(true);
   const [learnedIds, setLearnedIds] = useState<Set<string>>(new Set());
   const [learnedPhraseIds, setLearnedPhraseIds] = useState<Set<string>>(new Set());
@@ -1430,6 +1456,8 @@ export function GuitarTrainer() {
   const [guidedWaiting, setGuidedWaiting] = useState(false);
   const [auditNotes, setAuditNotes] = useState<Record<string, string>>({});
   const audioContextRef = useRef<AudioContext | null>(null);
+  const guitarGainRef = useRef<GainNode | null>(null);
+  const clickGainRef = useRef<GainNode | null>(null);
   const timerIdsRef = useRef<number[]>([]);
   const activeNodesRef = useRef<Set<OscillatorNode>>(new Set());
   const playbackSessionRef = useRef<PlaybackSession | null>(null);
@@ -1458,6 +1486,8 @@ export function GuitarTrainer() {
           learnedPhraseIds?: string[];
           countIn?: boolean;
           metronome?: boolean;
+          guitarVolume?: number;
+          clickVolume?: number;
           videoSync?: boolean;
           inputSensitivity?: number;
           tunerString?: "auto" | StringNumber;
@@ -1496,6 +1526,8 @@ export function GuitarTrainer() {
           ]));
           if (typeof saved.countIn === "boolean") setCountIn(saved.countIn);
           if (typeof saved.metronome === "boolean") setMetronome(saved.metronome);
+          if (typeof saved.guitarVolume === "number") setGuitarVolume(clamp(Math.round(saved.guitarVolume), 0, 100));
+          if (typeof saved.clickVolume === "number") setClickVolume(clamp(Math.round(saved.clickVolume), 0, 100));
           if (typeof saved.videoSync === "boolean") setVideoSync(saved.videoSync);
           if (typeof saved.inputSensitivity === "number") setInputSensitivity(saved.inputSensitivity);
           if (saved.tunerString === "auto" || typeof saved.tunerString === "number") setTunerString(saved.tunerString);
@@ -1526,6 +1558,8 @@ export function GuitarTrainer() {
       learnedPhraseIds: [...learnedPhraseIds],
       countIn,
       metronome,
+      guitarVolume,
+      clickVolume,
       videoSync,
       inputSensitivity,
       tunerString,
@@ -1534,7 +1568,7 @@ export function GuitarTrainer() {
       loopEnabled,
       auditNotes,
     }));
-  }, [auditNotes, bpm, countIn, inputSensitivity, learnedIds, learnedPhraseIds, lifeLeadSectionMode, loopEnabled, loopEnd, loopStart, metronome, songId, timelineMeasure, timelineStep, trackId, tunerString, videoSync]);
+  }, [auditNotes, bpm, clickVolume, countIn, guitarVolume, inputSensitivity, learnedIds, learnedPhraseIds, lifeLeadSectionMode, loopEnabled, loopEnd, loopStart, metronome, songId, timelineMeasure, timelineStep, trackId, tunerString, videoSync]);
 
   const song = SONGS[songId];
   const effectiveTrackId = song.tracks[trackId] ? trackId : song.defaultTrack;
@@ -1793,6 +1827,8 @@ export function GuitarTrainer() {
       inputSourceRef.current?.disconnect();
       inputFilterRef.current?.disconnect();
       analyserRef.current?.disconnect();
+      guitarGainRef.current?.disconnect();
+      clickGainRef.current?.disconnect();
       void audioContextRef.current?.close();
     };
   }, [clearTimers]);
@@ -1900,11 +1936,34 @@ export function GuitarTrainer() {
   }, [activeNotes, autoAdvance, bpm, currentNote.fret, currentNote.id, currentNote.measure, currentNote.stringNo, currentNote.tick, currentPhrase.canonicalId, currentPhraseNotes, guidedMode, guidedWaiting, inputEnabled, inputMode, inputSensitivity, learnedIds, moveToNoteIndex, noteIndex, playing, selectedDeviceId, sendVideoCommand, song.originalBpm, targetFrequency, track.videoStartSeconds, tunerDetectionTarget]);
 
   function getAudioContext() {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext();
-    }
-    return audioContextRef.current;
+    if (audioContextRef.current) return audioContextRef.current;
+
+    const context = new AudioContext();
+    const guitarGain = context.createGain();
+    const clickGain = context.createGain();
+    guitarGain.gain.value = guitarVolume / 100;
+    clickGain.gain.value = clickVolume / 100;
+    guitarGain.connect(context.destination);
+    clickGain.connect(context.destination);
+    audioContextRef.current = context;
+    guitarGainRef.current = guitarGain;
+    clickGainRef.current = clickGain;
+    return context;
   }
+
+  useEffect(() => {
+    const context = audioContextRef.current;
+    const gain = guitarGainRef.current;
+    if (!context || !gain) return;
+    gain.gain.setTargetAtTime(guitarVolume / 100, context.currentTime, 0.01);
+  }, [guitarVolume]);
+
+  useEffect(() => {
+    const context = audioContextRef.current;
+    const gain = clickGainRef.current;
+    if (!context || !gain) return;
+    gain.gain.setTargetAtTime(clickVolume / 100, context.currentTime, 0.01);
+  }, [clickVolume]);
 
   async function connectInput(deviceId?: string) {
     setInputError("");
@@ -2026,7 +2085,7 @@ export function GuitarTrainer() {
     gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
     oscillator.connect(gain);
     overtone.connect(gain);
-    gain.connect(context.destination);
+    gain.connect(guitarGainRef.current ?? context.destination);
     activeNodesRef.current.add(oscillator);
     activeNodesRef.current.add(overtone);
     oscillator.addEventListener("ended", () => activeNodesRef.current.delete(oscillator), { once: true });
@@ -2045,7 +2104,7 @@ export function GuitarTrainer() {
     gain.gain.setValueAtTime(0.1, startAt);
     gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.045);
     oscillator.connect(gain);
-    gain.connect(context.destination);
+    gain.connect(clickGainRef.current ?? context.destination);
     activeNodesRef.current.add(oscillator);
     oscillator.addEventListener("ended", () => activeNodesRef.current.delete(oscillator), { once: true });
     oscillator.start(startAt);
@@ -2811,15 +2870,49 @@ export function GuitarTrainer() {
               })}
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold">
-                <input className="size-4" type="checkbox" checked={countIn} onChange={(event) => setCountIn(event.target.checked)} />
-                カウント
-              </label>
-              <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold">
-                <input className="size-4" type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />
-                クリック
-              </label>
+                <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold">
+                  <input className="size-4" type="checkbox" checked={countIn} onChange={(event) => setCountIn(event.target.checked)} />
+                  カウント
+                </label>
+                <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-bold">
+                  <input className="size-4" type="checkbox" checked={metronome} onChange={(event) => setMetronome(event.target.checked)} />
+                  クリック
+                </label>
               </div>
+            </div>
+            <div className="mt-3 grid gap-2 border-t border-stone-800 pt-3 sm:grid-cols-2">
+              <label className="rounded-lg bg-stone-950 px-3 py-2">
+                <span className="flex items-center justify-between gap-3 text-xs font-bold">
+                  <span>ギター音</span>
+                  <output className="text-lime-300 tabular-nums">{guitarVolume}%</output>
+                </span>
+                <input
+                  className="mt-1 min-h-10 w-full accent-lime-300"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={guitarVolume}
+                  onChange={(event) => setGuitarVolume(Number(event.target.value))}
+                  aria-label="ギター音量"
+                />
+              </label>
+              <label className="rounded-lg bg-stone-950 px-3 py-2">
+                <span className="flex items-center justify-between gap-3 text-xs font-bold">
+                  <span>クリック音</span>
+                  <output className="text-lime-300 tabular-nums">{clickVolume}%</output>
+                </span>
+                <input
+                  className="mt-1 min-h-10 w-full accent-lime-300"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={clickVolume}
+                  onChange={(event) => setClickVolume(Number(event.target.value))}
+                  aria-label="クリック音量"
+                />
+              </label>
             </div>
             <p className="mt-1 text-pretty text-xs text-stone-500">25 BPMまで落とせます。原曲の25%より遅くすると、動画同期は自動でOFFになります。</p>
           </section>

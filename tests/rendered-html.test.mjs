@@ -263,6 +263,29 @@ test("keeps the four-measure TAB stack compact", async () => {
   assert.match(trainer, /<div className="mt-3 grid gap-2">/);
 });
 
+test("highlights only mixed-meter score measures", async () => {
+  const trainer = await readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8");
+
+  assert.match(trainer, /const isMixedMeter = beats !== 4/);
+  assert.match(trainer, /data-mixed-meter=\{isMixedMeter\}/);
+  assert.match(trainer, /isMixedMeter \? "border-amber-400\/80" : "border-lime-300\/50"/);
+  assert.match(trainer, /\{beats\} \/ 4/);
+  assert.match(trainer, /bg-amber-950\/30 text-amber-200/);
+});
+
+test("keeps separate live guitar and click volume faders", async () => {
+  const trainer = await readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8");
+
+  assert.match(trainer, /aria-label="ギター音量"/);
+  assert.match(trainer, /aria-label="クリック音量"/);
+  assert.match(trainer, /guitarGain\.gain\.value = guitarVolume \/ 100/);
+  assert.match(trainer, /clickGain\.gain\.value = clickVolume \/ 100/);
+  assert.match(trainer, /gain\.gain\.setTargetAtTime\(guitarVolume \/ 100/);
+  assert.match(trainer, /gain\.gain\.setTargetAtTime\(clickVolume \/ 100/);
+  assert.match(trainer, /guitarVolume,/);
+  assert.match(trainer, /clickVolume,/);
+});
+
 test("keeps the video-audited lead strings and the single live monitor", async () => {
   const [trainer, tabDataText] = await Promise.all([
     readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8"),
