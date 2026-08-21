@@ -286,6 +286,16 @@ test("keeps separate live guitar and click volume faders", async () => {
   assert.match(trainer, /clickVolume,/);
 });
 
+test("schedules dense audio one measure at a time with lookahead", async () => {
+  const trainer = await readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8");
+
+  assert.match(trainer, /const AUDIO_SCHEDULE_LOOKAHEAD_MS = 600/);
+  assert.match(trainer, /const scheduleMeasureAudio = \(measure: number, measureOffset: number, measureSteps: number\)/);
+  assert.match(trainer, /const audioTimer = window\.setTimeout/);
+  assert.match(trainer, /- AUDIO_SCHEDULE_LOOKAHEAD_MS/);
+  assert.match(trainer, /eventStartAt \+ 0\.02 < context\.currentTime/);
+});
+
 test("keeps the video-audited lead strings and the single live monitor", async () => {
   const [trainer, tabDataText] = await Promise.all([
     readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8"),

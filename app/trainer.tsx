@@ -23,6 +23,7 @@ import {
 
 type StringNumber = 1 | 2 | 3 | 4 | 5 | 6;
 const MIN_PRACTICE_BPM = 25;
+const AUDIO_SCHEDULE_LOOKAHEAD_MS = 600;
 
 type TabEvent = {
   id: string;
@@ -2211,14 +2212,15 @@ export function GuitarTrainer() {
       }
     }
 
-    let measureOffset = 0;
-    for (let measure = startMeasure; measure <= endMeasure; measure += 1) {
-      const measureSteps = stepsForMeasure(measure, scheduledSong.meterMap);
+    const scheduleMeasureAudio = (measure: number, measureOffset: number, measureSteps: number) => {
       if (metronome) {
         for (let step = 0; step < measureSteps; step += 4) {
           const clickStep = measureOffset + step;
           if (clickStep + 0.001 >= boundedPosition) {
-            scheduleClick(context, startAt + (clickStep - boundedPosition) * secondsPerStep, step === 0);
+            const clickStartAt = startAt + (clickStep - boundedPosition) * secondsPerStep;
+            if (clickStartAt + 0.02 >= context.currentTime) {
+              scheduleClick(context, Math.max(clickStartAt, context.currentTime + 0.005), step === 0);
+            }
           }
         }
       }
@@ -2231,12 +2233,14 @@ export function GuitarTrainer() {
       ).forEach((event) => {
         const eventOffset = measureOffset + event.step;
         if (eventOffset + 0.001 < boundedPosition) return;
+        const eventStartAt = startAt + (eventOffset - boundedPosition) * secondsPerStep;
+        if (eventStartAt + 0.02 < context.currentTime) return;
         schedulePluck(
           context,
           event.stringNo,
           event.fret,
           scheduledCapo,
-          startAt + (eventOffset - boundedPosition) * secondsPerStep,
+          Math.max(eventStartAt, context.currentTime + 0.005),
           Math.max(
             0.12,
             event.durationSteps * secondsPerStep * (event.sustain ? 0.98 : 0.86),
@@ -2250,12 +2254,33 @@ export function GuitarTrainer() {
               setTimelineMeasure(scheduledNotes[nextIndex].measure);
               setTimelineStep(scheduledNotes[nextIndex].tick * 2);
             }
-          }, (eventOffset - boundedPosition) * secondsPerStep * 1000);
+          }, Math.max(0, (eventStartAt - context.currentTime) * 1000));
           timerIdsRef.current.push(timerId);
         }
       });
+    };
 
-      if (measureOffset > boundedPosition + 0.001) {
+    let measureOffset = 0;
+    for (let measure = startMeasure; measure <= endMeasure; measure += 1) {
+      const measureSteps = stepsForMeasure(measure, scheduledSong.meterMap);
+      const currentMeasureOffset = measureOffset;
+      if (currentMeasureOffset + measureSteps > boundedPosition) {
+        const audioDelayMs = Math.max(
+          0,
+          (currentMeasureOffset - boundedPosition) * secondsPerStep * 1000 - AUDIO_SCHEDULE_LOOKAHEAD_MS,
+        );
+        if (audioDelayMs === 0) {
+          scheduleMeasureAudio(measure, currentMeasureOffset, measureSteps);
+        } else {
+          const audioTimer = window.setTimeout(
+            () => scheduleMeasureAudio(measure, currentMeasureOffset, measureSteps),
+            audioDelayMs,
+          );
+          timerIdsRef.current.push(audioTimer);
+        }
+      }
+
+      if (currentMeasureOffset > boundedPosition + 0.001) {
         const measureTimer = window.setTimeout(() => {
           setPlaybackMeasure(measure);
           setTimelineMeasure(measure);
@@ -2265,7 +2290,7 @@ export function GuitarTrainer() {
             sendVideoCommand("seekTo", [videoTimeForPosition(scheduledTrack.videoStartSeconds, scheduledSong.originalBpm, measure, 0, scheduledSong.meterMap), true]);
             sendVideoCommand("setPlaybackRate", [nextBpm / scheduledSong.originalBpm]);
           }
-        }, (measureOffset - boundedPosition) * secondsPerStep * 1000);
+        }, (currentMeasureOffset - boundedPosition) * secondsPerStep * 1000);
         timerIdsRef.current.push(measureTimer);
       }
       measureOffset += measureSteps;
