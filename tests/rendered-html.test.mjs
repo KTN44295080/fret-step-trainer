@@ -226,6 +226,31 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
     assert.deepEqual(madowBackingCorrections[measure].map((glyph) => glyph.slot), [0, 2, 4, 6, 8, 10, 12, 14]);
     assert.deepEqual(madowBackingCorrections[measure].map(symbolSignature), Array(8).fill("6:0"));
   }
+  assertSixteenthRun(tabData.madow.backing["7"], Array(16).fill("3:4+4:4"));
+  assertSixteenthRun(tabData.madow.backing["8"], Array(16).fill("3:7+4:7"));
+  assert.equal(tabData.madow.backing["123"].length, 10);
+  assert.deepEqual(tabData.madow.backing["123"].slice(2).map(symbolSignature), Array(8).fill("2:7+3:9"));
+  assert.ok(tabData.madow.backing["123"].slice(2).every((glyph) => glyph.technique === "full"));
+  assert.equal(tabData.madow.backing["124"].length, 18);
+  assert.equal(new Set(tabData.madow.backing["124"].map((glyph) => glyph.slot)).size, 18);
+  assert.deepEqual(tabData.madow.backing["124"].map(symbolSignature), [
+    ...Array(12).fill("2:8+3:10"),
+    ...Array(6).fill("2:12+3:14"),
+  ]);
+  assert.deepEqual(tabData.madow.backing["125"].map(symbolSignature), ["1:0+2:0+3:0+4:4+5:3"]);
+  assert.deepEqual(tabData.madow.backing["129"].map(symbolSignature), ["1:0+2:0+3:0+4:4+5:×+6:0"]);
+  assert.deepEqual(tabData.madow.backing["137"].map(symbolSignature), ["1:0+2:0+3:2+4:0+5:2+6:0"]);
+  assert.deepEqual(tabData.madow.backing["149"].map((glyph) => glyph.slot), [0, 4, 8, 12]);
+  assert.deepEqual(tabData.madow.backing["199"].map(symbolSignature), ["2:<7>+3:<7>+4:<7>+5:<7>"]);
+  for (const measure of ["200", "201", "202"]) {
+    assert.equal(tabData.madow.backing[measure][0].technique, "tie");
+    assert.equal(symbolSignature(tabData.madow.backing[measure][0]), "2:(<7>)+3:(<7>)+4:(<7>)+5:(<7>)");
+  }
+  assert.equal(symbolSignature(tabData.madow.backing["203"][0]), "1:0+2:0+3:0+4:0+5:2+6:0");
+  assert.equal(symbolSignature(tabData.madow.backing["204"][0]), "1:(0)+2:(0)+3:(0)+4:(0)+5:(2)+6:(0)");
+  assertSixteenthRun(tabData.madow.backing["205"], Array(16).fill("3:4+4:4"));
+  assertSixteenthRun(tabData.madow.backing["206"], Array(16).fill("3:7+4:7"));
+  assert.deepEqual(tabData.madow.backing["207"], []);
 
   for (const [songId, song] of Object.entries(tabData)) {
     for (const [trackId, measures] of Object.entries(song)) {

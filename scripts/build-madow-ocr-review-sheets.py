@@ -12,8 +12,8 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 FRAME_ROOT = ROOT / "audit" / "measure-frames-highres"
-DATA = json.loads((ROOT / "audit" / "madow-retranscribed-v5.json").read_text(encoding="utf-8"))["madow"]
-REPORT = json.loads((ROOT / "audit" / "madow-retranscription-v5-report.json").read_text(encoding="utf-8"))
+DATA = json.loads((ROOT / "audit" / "madow-retranscribed-v7.json").read_text(encoding="utf-8"))["madow"]
+REPORT = json.loads((ROOT / "audit" / "madow-retranscription-v7-report.json").read_text(encoding="utf-8"))
 OUTPUT_ROOT = ROOT / "audit" / "madow-ocr-review"
 
 
@@ -25,7 +25,7 @@ def yellow_bounds(image: np.ndarray) -> tuple[int, int]:
     start = previous = int(selected[0])
     for value in selected[1:]:
         value = int(value)
-        if value > previous + 2:
+        if value > previous + 8:
             runs.append((start, previous))
             start = value
         previous = value

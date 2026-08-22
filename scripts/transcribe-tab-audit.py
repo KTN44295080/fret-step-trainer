@@ -69,7 +69,10 @@ def yellow_bounds(image: np.ndarray, rows: tuple[int, int]) -> tuple[int, int]:
     start = previous = int(selected[0])
     for value in selected[1:]:
         value = int(value)
-        if value > previous + 2:
+        # The blue playback cursor splits one highlighted measure into two
+        # yellow runs. Treat that thin cursor gap as part of the same measure;
+        # otherwise dense notes before/after the cursor are silently dropped.
+        if value > previous + 8:
             runs.append((start, previous))
             start = value
         previous = value
@@ -169,11 +172,12 @@ def line_candidates(
     line_y: int,
     left: int,
     right: int,
+    threshold: int = 105,
 ) -> tuple[list[tuple[np.ndarray, float, int]], list[dict[str, object]]]:
     """Extract likely fret-number images without invoking OCR."""
 
     gray = cv2.cvtColor(image[line_y - 10 : line_y + 11, left:right], cv2.COLOR_BGR2GRAY)
-    mask = (gray < 105).astype(np.uint8) * 255
+    mask = (gray < threshold).astype(np.uint8) * 255
     count, _, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
     components: list[tuple[int, int, int, int, int]] = []
     for index in range(1, count):
@@ -528,47 +532,6 @@ def transcribe_source(source: Source, ocr: RapidOCR) -> tuple[dict[str, object],
     measures: dict[str, object] = {}
     report: dict[str, object] = {"measures": source.measures, "issues": [], "empty": [], "lowConfidence": []}
     confidence_values: list[float] = []
-    # Native 1920x1080 captures retain the spatial relationship between chord
-    # stacks and sequential notes.  Keep the per-string recognizer below as a
-    # secondary cross-check, but use full-measure OCR for the audited result.
-    if source.key.startswith("madow."):
-        for measure in range(1, source.measures + 1):
-            frame = source_dir / f"measure-{measure:03d}.jpg"
-            image = cv2.imread(str(frame))
-            if image is None:
-                report["issues"].append({"measure": measure, "reason": "missing-frame"})
-                measures[str(measure)] = []
-                continue
-            try:
-                left, right = yellow_bounds(image, source.yellow_rows)
-            except ValueError as error:
-                report["issues"].append({"measure": measure, "reason": str(error)})
-                measures[str(measure)] = []
-                continue
-            tokens_by_string, techniques, issues = full_measure_tokens(image, ocr, source, left, right)
-            for issue in issues:
-                report["issues"].append({"measure": measure, **issue})
-            confidence_values.extend(float(token["confidence"]) for tokens in tokens_by_string for token in tokens)
-            glyphs = quantize_glyphs(tokens_by_string, left, right)
-            attach_detected_techniques(glyphs, techniques, left, right)
-            measures[str(measure)] = glyphs
-            if not glyphs:
-                report["empty"].append(measure)
-            low = [
-                round(float(token["confidence"]), 3)
-                for tokens in tokens_by_string
-                for token in tokens
-                if float(token["confidence"]) < 0.72
-            ]
-            if low:
-                report["lowConfidence"].append({"measure": measure, "scores": low})
-            if measure % 25 == 0 or measure == source.measures:
-                print(f"{source.key}: full OCR {measure}/{source.measures}", flush=True)
-        report["averageConfidence"] = round(float(np.mean(confidence_values)), 4) if confidence_values else 0
-        report["glyphs"] = sum(len(glyphs) for glyphs in measures.values())
-        report["symbols"] = sum(len(glyph["symbols"]) for glyphs in measures.values() for glyph in glyphs)
-        return measures, report
-
     measure_contexts: dict[int, tuple[int, int, list[list[dict[str, object]]]]] = {}
     crops: list[np.ndarray] = []
     crop_meta: list[tuple[int, int, float, int]] = []
@@ -590,7 +553,13 @@ def transcribe_source(source: Source, ocr: RapidOCR) -> tuple[dict[str, object],
         tokens_by_string: list[list[dict[str, object]]] = [[] for _ in range(6)]
         measure_contexts[measure] = (left, right, tokens_by_string)
         for string_index, line_y in enumerate(source.staff_lines):
-            candidates, issues = line_candidates(image, line_y, left, right)
+            candidates, issues = line_candidates(
+                image,
+                line_y,
+                left,
+                right,
+                threshold=145 if source.key.startswith("madow.") else 105,
+            )
             for issue in issues:
                 report["issues"].append({"measure": measure, "stringNo": string_index + 1, **issue})
             for crop, center_x, area in candidates:
@@ -837,6 +806,18 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
                 madow_backing[str(measure)] = [
                     glyph(slot, (6, "0")) for slot in range(0, 16, 2)
                 ]
+            madow_backing["36"] = [
+                glyph(1, (2, "(1)"), (3, "(0)"), technique="tie"),
+                glyph(13, (5, "2")),
+            ]
+            madow_backing["39"] = [
+                glyph(1, (5, "(3)"), technique="tie"),
+                glyph(4, (4, "5")),
+                glyph(7, (1, "3"), (2, "5")),
+            ]
+            madow_backing["40"] = [
+                glyph(2, (1, "(3)"), (2, "(5)"), technique="tie")
+            ]
             madow_backing["78"] = [
                 glyph(0, (2, "(8)"), (3, "(7)"), (4, "(10)"), technique="tie")
             ]
@@ -890,6 +871,98 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
                     for slot in (2, 4, 6, 8, 10, 12, 14)
                 ],
             ]
+
+            # Native-frame corrections for symbols whose printed notation is
+            # deliberately digit-like. Bend arrows were being read as fret 1,
+            # and the vertical strum mark was being read as a stack of 1s.
+            # These measures are copied from the highlighted source TAB.
+            madow_backing["123"] = [
+                glyph(0, (6, "0")),
+                glyph(3, (6, "0")),
+                *[
+                    glyph(slot, (2, "7"), (3, "9"), technique="full")
+                    for slot in (6, 7, 8, 9, 11, 12, 13, 14)
+                ],
+            ]
+            # Measure 124 is 6/4: twelve 8/10 bends followed by six
+            # 12/14 bends, evenly distributed over the longer measure.
+            madow_backing["124"] = [
+                *[
+                    glyph(index * 16 / 18, (2, "8"), (3, "10"), technique="full")
+                    for index in range(12)
+                ],
+                *[
+                    glyph(index * 16 / 18, (2, "12"), (3, "14"), technique="full")
+                    for index in range(12, 18)
+                ],
+            ]
+            madow_backing["125"] = [
+                glyph(0, (1, "0"), (2, "0"), (3, "0"), (4, "4"), (5, "3"))
+            ]
+            madow_backing["126"] = [
+                glyph(0, (1, "(0)"), (2, "(0)"), (3, "(0)"), (4, "(4)"), (5, "(3)"), technique="tie"),
+                glyph(8, (2, "0")),
+                glyph(12, (3, "0")),
+            ]
+            madow_backing["129"] = [
+                glyph(0, (1, "0"), (2, "0"), (3, "0"), (4, "4"), (5, "×"), (6, "0"))
+            ]
+            madow_backing["130"] = [
+                glyph(0, (1, "(0)"), (2, "(0)"), (3, "(0)"), (4, "(4)"), (5, "(×)"), (6, "(0)"), technique="tie"),
+                glyph(8, (2, "0")),
+                glyph(12, (3, "0")),
+            ]
+            madow_backing["133"] = [
+                glyph(0, (1, "0"), (2, "0"), (3, "0"), (4, "4"), (5, "3"))
+            ]
+            madow_backing["137"] = [
+                glyph(0, (1, "0"), (2, "0"), (3, "2"), (4, "0"), (5, "2"), (6, "0"))
+            ]
+            madow_backing["139"] = [
+                glyph(0, (1, "0"), (2, "0"), (3, "0"), (4, "0"), (5, "2"), (6, "0"))
+            ]
+            madow_backing["140"] = [
+                glyph(0, (1, "(0)"), (2, "(0)"), (3, "(0)"), (4, "(0)"), (5, "(2)"), (6, "(0)"), technique="tie")
+            ]
+            madow_backing["149"] = [
+                glyph(0, (1, "(0)"), (2, "(1)"), (3, "(0)"), (4, "(2)"), (5, "(0)"), technique="tie"),
+                glyph(4, (4, "2")),
+                glyph(8, (2, "1")),
+                glyph(12, (3, "0")),
+            ]
+            madow_backing["153"] = [
+                glyph(0, (1, "(0)"), (2, "(3)"), (3, "(0)"), (4, "(2)"), (5, "(3)"), technique="tie"),
+                glyph(4, (4, "2")),
+                glyph(8, (2, "3")),
+                glyph(12, (3, "0")),
+            ]
+
+            # The outro sustains the same four natural harmonics through
+            # measures 199-202, then returns to the open chord before the two
+            # dense dyad measures. Parentheses are visually significant here.
+            harmonic_chord = ((2, "<7>"), (3, "<7>"), (4, "<7>"), (5, "<7>"))
+            tied_harmonic_chord = tuple(
+                (string_no, f"({text})") for string_no, text in harmonic_chord
+            )
+            madow_backing["199"] = [glyph(0, *harmonic_chord, technique="harm.")]
+            for measure in (200, 201, 202):
+                madow_backing[str(measure)] = [
+                    glyph(0, *tied_harmonic_chord, technique="tie")
+                ]
+            madow_backing["203"] = [glyph(0, *open_chord)]
+            madow_backing["204"] = [glyph(0, *tied_open_chord, technique="tie")]
+
+            # OCR often sees only one parenthesis from a vertically aligned
+            # tied chord. Once a source glyph is identified as a tie, the
+            # complete chord stack carries the same notation.
+            for measure_glyphs in madow_backing.values():
+                for current in measure_glyphs:
+                    if current.get("technique") != "tie":
+                        continue
+                    for symbol in current["symbols"]:
+                        text = symbol["text"]
+                        if not (text.startswith("(") and text.endswith(")")):
+                            symbol["text"] = f"({text})"
 
     if "life-over" not in data:
         return
@@ -1281,7 +1354,7 @@ def main() -> None:
         set_nested(data, source.key, measures)
         reports[source.key] = report
 
-    if "life-over" in data:
+    if "life-over" in data or "madow" in data:
         apply_manual_corrections(data)
     args.output.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     args.report.write_text(json.dumps(reports, ensure_ascii=False, indent=2), encoding="utf-8")
