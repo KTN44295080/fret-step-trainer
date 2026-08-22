@@ -255,7 +255,7 @@ def main() -> None:
     for track in TRACKS:
         track_issues: list[dict[str, object]] = []
         empty: list[int] = []
-        for measure in range(1, 152):
+        for measure in range(1, 157):
             frame = args.frames / f"measure-{measure:03d}.jpg"
             image = cv2.imread(str(frame))
             if image is None:
@@ -293,8 +293,8 @@ def main() -> None:
             if not glyphs:
                 empty.append(measure)
             track_issues.extend({"measure": measure, **issue} for issue in issues)
-            if measure % 25 == 0 or measure == 151:
-                print(f"{track.name}: {measure}/151", flush=True)
+            if measure % 25 == 0 or measure == 156:
+                print(f"{track.name}: {measure}/156", flush=True)
         report["tracks"][track.name] = {  # type: ignore[index]
             "issues": track_issues,
             "issueMeasures": sorted({int(issue["measure"]) for issue in track_issues}),

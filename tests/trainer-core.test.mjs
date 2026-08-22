@@ -7,6 +7,7 @@ import {
   centsBetween,
   detectPitch,
   extendDurationThroughNextMeasureTie,
+  extendDurationThroughFollowingTies,
   frequencyFor,
   measurePosition,
   sustainGuitarPart,
@@ -170,6 +171,30 @@ test("a parenthesized chorus note sustains the previous attack across the barlin
       nextGlyphs,
     }),
     { durationSteps: 2, sustain: false },
+  );
+});
+
+test("a held chord sustains through several tied measures", () => {
+  const tiedOpenChord = [{
+    slot: 0,
+    technique: "tie",
+    symbols: [{ stringNo: 5, text: "(2)" }],
+  }];
+  assert.deepEqual(
+    extendDurationThroughFollowingTies({
+      baseDurationSteps: 2,
+      currentMeasureSteps: 16,
+      eventStep: 0,
+      stringNo: 5,
+      fret: 2,
+      followingMeasures: [
+        { measureSteps: 16, glyphs: tiedOpenChord },
+        { measureSteps: 16, glyphs: tiedOpenChord },
+        { measureSteps: 16, glyphs: tiedOpenChord },
+        { measureSteps: 16, glyphs: [] },
+      ],
+    }),
+    { durationSteps: 64, sustain: true },
   );
 });
 

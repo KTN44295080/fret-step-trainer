@@ -36,9 +36,9 @@ class Source:
 
 
 SOURCES = (
-    Source("life-over.lead", "life-over-lead", 151, (505, 521, 537, 553, 569, 585), (90, 650), 470),
-    Source("life-over.backing", "life-over-backing", 151, (147, 163, 179, 195, 211, 227), (90, 650), 115),
-    Source("life-over.third", "life-over-lead", 151, (304, 320, 336, 352, 368, 384), (90, 650), 270),
+    Source("life-over.lead", "life-over-lead", 156, (505, 521, 537, 553, 569, 585), (90, 650), 470),
+    Source("life-over.backing", "life-over-backing", 156, (147, 163, 179, 195, 211, 227), (90, 650), 115),
+    Source("life-over.third", "life-over-lead", 156, (304, 320, 336, 352, 368, 384), (90, 650), 270),
     # Madow is audited from the native 1920x1080 captures.  These coordinates
     # are the six TAB lines in that resolution, measured from the source frame.
     Source("madow.lead", "madow-lead", 207, (902, 922, 942, 962, 982, 1002), (585, 1070), 835),
@@ -821,6 +821,22 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
                 ],
             ]
         if isinstance(madow_backing, dict):
+            # The generic OCR drops tied chord stacks and under-counts dense,
+            # repeated notes. These opening measures were transcribed directly
+            # from the highlighted native 1920x1080 score frames.
+            open_chord = ((1, "0"), (2, "0"), (3, "0"), (4, "0"), (5, "2"), (6, "0"))
+            tied_open_chord = tuple((string_no, f"({text})") for string_no, text in open_chord)
+            madow_backing["1"] = [glyph(0, *open_chord)]
+            for measure in range(2, 7):
+                madow_backing[str(measure)] = [glyph(0, *tied_open_chord, technique="tie")]
+            for measure, fret in ((7, "4"), (8, "7"), (15, "4"), (16, "7")):
+                madow_backing[str(measure)] = [
+                    glyph(slot, (3, fret), (4, fret)) for slot in range(16)
+                ]
+            for measure in range(9, 15):
+                madow_backing[str(measure)] = [
+                    glyph(slot, (6, "0")) for slot in range(0, 16, 2)
+                ]
             madow_backing["78"] = [
                 glyph(0, (2, "(8)"), (3, "(7)"), (4, "(10)"), technique="tie")
             ]
@@ -1104,7 +1120,7 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
     ]
 
     # Final special figures and outro, checked directly against measures
-    # 111-151 in the source video.
+    # 111-156 in the source video.
     if lead["111"]:  # type: ignore[index]
         lead["111"][-1] = glyph(13, (2, "10"))  # type: ignore[index]
     lead["114"] = [
@@ -1150,7 +1166,7 @@ def apply_manual_corrections(data: dict[str, object]) -> None:
     lead["148"] = [
         glyph(slot, (1, "13"), (3, "10")) for slot in (2, 6, 10, 12)
     ]
-    for measure in ("149", "150", "151"):
+    for measure in ("149", "150", "151", "152", "153", "154", "155", "156"):
         lead[measure] = []
 
     backing["11"][0] = {  # type: ignore[index]

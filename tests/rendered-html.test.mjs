@@ -50,7 +50,7 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /ギター入力レベル/);
   assert.match(html, /奏法記号を「指の動き」で見る/);
   assert.match(html, /リードギター TAB/);
-  assert.match(html, /1–151小節/);
+  assert.match(html, /1–156小節/);
   assert.match(html, /aria-label="曲の再生位置を小節で移動"/);
   assert.match(html, /▶ 現在地から再生/);
   assert.match(html, /aria-label="1小節から再生"/);
@@ -61,7 +61,7 @@ test("server-renders the finished guitar trainer", async () => {
   assert.match(html, /再生位置/);
   assert.match(html, /表示4小節/);
   assert.match(html, /この区間/);
-  assert.doesNotMatch(html, /曲全体 1〜151/);
+  assert.doesNotMatch(html, /曲全体 1〜156/);
   assert.match(html, /aria-label="再生範囲"/);
   assert.match(html, />表示4小節 1〜4</);
   assert.match(html, /aria-pressed="true"/);
@@ -100,15 +100,17 @@ test("server-renders the finished guitar trainer", async () => {
 });
 
 test("keeps the input meter, tuner, and audited TAB data in the client implementation", async () => {
-  const [page, layout, trainer, trainerCore, tabDataText, packageJson] = await Promise.all([
+  const [page, layout, trainer, trainerCore, tabDataText, madowBackingCorrectionsText, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/trainer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/trainer-core.mjs", import.meta.url), "utf8"),
     readFile(new URL("../app/tab-audit-data.json", import.meta.url), "utf8"),
+    readFile(new URL("../app/madow-backing-manual-corrections.json", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
   const tabData = JSON.parse(tabDataText);
+  const madowBackingCorrections = JSON.parse(madowBackingCorrectionsText);
 
   assert.match(page, /<GuitarTrainer \/>/);
   assert.match(layout, /<html lang="ja">/);
@@ -210,6 +212,20 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
     assert.equal(tabData.madow.backing[measure][0].slot, 0);
     assert.equal(symbolSignature(tabData.madow.backing[measure][0]), "3:(0)");
   }
+  assert.equal(madowBackingCorrections["1"][0].slot, 0);
+  assert.equal(symbolSignature(madowBackingCorrections["1"][0]), "1:0+2:0+3:0+4:0+5:2+6:0");
+  for (const measure of ["2", "3", "4", "5", "6"]) {
+    assert.equal(madowBackingCorrections[measure][0].technique, "tie");
+    assert.equal(symbolSignature(madowBackingCorrections[measure][0]), "1:(0)+2:(0)+3:(0)+4:(0)+5:(2)+6:(0)");
+  }
+  assertSixteenthRun(madowBackingCorrections["7"], Array(16).fill("3:4+4:4"));
+  assertSixteenthRun(madowBackingCorrections["8"], Array(16).fill("3:7+4:7"));
+  assertSixteenthRun(madowBackingCorrections["15"], Array(16).fill("3:4+4:4"));
+  assertSixteenthRun(madowBackingCorrections["16"], Array(16).fill("3:7+4:7"));
+  for (const measure of ["9", "10", "11", "12", "13", "14"]) {
+    assert.deepEqual(madowBackingCorrections[measure].map((glyph) => glyph.slot), [0, 2, 4, 6, 8, 10, 12, 14]);
+    assert.deepEqual(madowBackingCorrections[measure].map(symbolSignature), Array(8).fill("6:0"));
+  }
 
   for (const [songId, song] of Object.entries(tabData)) {
     for (const [trackId, measures] of Object.entries(song)) {
@@ -234,6 +250,8 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   assert.doesNotMatch(trainer, /onClick=\{\(\) => playRange\(1, 151/);
   assert.doesNotMatch(trainer, /live-console sticky|sticky top-0 z-50/);
   assert.match(trainer, /scorePlaybackEvents/);
+  assert.match(trainer, /if \(!useVideoSync\) scorePlaybackEvents/);
+  assert.match(trainer, /sendVideoCommand\("setVolume", \[guitarVolume\]\)/);
   assert.match(trainer, /activeNodesRef/);
   assert.match(trainer, /guidedMode/);
   assert.match(trainer, /checked=\{loopEnabled\}/);
@@ -241,6 +259,9 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   assert.match(trainer, /動画同期/);
   assert.match(trainer, /enablejsapi=1/);
   assert.match(trainer, /fret-step-trainer:v2/);
+  assert.match(trainer, /totalMeasures: 156/);
+  assert.match(trainer, /range: "149–156", start: 149, end: 156, kind: "rest"/);
+  assert.match(trainer, /Array\.from\(\{ length: SONGS\[songId\]\.totalMeasures \}/);
   assert.match(trainer, /auditNotes/);
   assert.match(trainer, /<details className="live-console/);
   assert.equal(Object.keys(tabData["life-over"].lead).length, 151);

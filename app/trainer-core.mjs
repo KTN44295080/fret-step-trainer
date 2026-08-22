@@ -277,6 +277,40 @@ export function extendDurationThroughNextMeasureTie({
   };
 }
 
+export function extendDurationThroughFollowingTies({
+  baseDurationSteps = 2,
+  currentMeasureSteps,
+  eventStep,
+  stringNo,
+  fret,
+  followingMeasures,
+}) {
+  let durationSteps = baseDurationSteps;
+  let sustain = false;
+  for (const { measureSteps, glyphs } of followingMeasures) {
+    const matchingTie = glyphs.find((glyph) => (
+      glyph.technique === "tie"
+      && glyph.symbols.some((symbol) => {
+        const numeric = symbol.text.match(/\d+/);
+        return symbol.stringNo === stringNo && numeric && Number(numeric[0]) === fret;
+      })
+    ));
+    if (!matchingTie) break;
+
+    sustain = true;
+    const tieStep = Math.round((matchingTie.slot / 16) * measureSteps);
+    const nextAttackStep = glyphs
+      .filter((glyph) => glyph.technique !== "tie")
+      .map((glyph) => Math.round((glyph.slot / 16) * measureSteps))
+      .filter((step) => step > tieStep)
+      .sort((left, right) => left - right)[0];
+    durationSteps = Math.max(durationSteps, currentMeasureSteps - eventStep)
+      + (nextAttackStep ?? measureSteps);
+    if (nextAttackStep !== undefined) break;
+  }
+  return { durationSteps, sustain };
+}
+
 export function videoTimeForPosition(
   videoStartSeconds,
   originalBpm,

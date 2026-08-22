@@ -11,8 +11,8 @@ $videoCache = Join-Path $workspace "audit\video-cache"
 $auditRoot = Join-Path $workspace $(if ($HighResolution) { "audit\measure-frames-highres" } else { "audit\measure-frames" })
 
 $sources = @(
-  [pscustomobject]@{ Song = "life-over"; Track = "lead"; Video = "6LfUfHSIiMw.mp4"; Offset = 215.0; Bpm = 170; Measures = 151; MeterMap = @{} },
-  [pscustomobject]@{ Song = "life-over"; Track = "backing"; Video = "6LfUfHSIiMw.mp4"; Offset = 215.0; Bpm = 170; Measures = 151; MeterMap = @{} },
+  [pscustomobject]@{ Song = "life-over"; Track = "lead"; Video = "6LfUfHSIiMw.mp4"; Offset = 215.0; Bpm = 170; Measures = 156; MeterMap = @{} },
+  [pscustomobject]@{ Song = "life-over"; Track = "backing"; Video = "6LfUfHSIiMw.mp4"; Offset = 215.0; Bpm = 170; Measures = 156; MeterMap = @{} },
   [pscustomobject]@{ Song = "madow"; Track = "lead"; Video = "85ORTRtwmF4.mp4"; Offset = 1.2; Bpm = 194; Measures = 207; MeterMap = @{ 18 = 6; 117 = 5; 118 = 5; 119 = 5; 120 = 6; 121 = 5; 122 = 5; 123 = 5; 124 = 6 } },
   [pscustomobject]@{ Song = "madow"; Track = "backing"; Video = "vPexB7CEMGY.mp4"; Offset = 1.0; Bpm = 194; Measures = 207; MeterMap = @{ 18 = 6; 117 = 5; 118 = 5; 119 = 5; 120 = 6; 121 = 5; 122 = 5; 123 = 5; 124 = 6 } }
 )

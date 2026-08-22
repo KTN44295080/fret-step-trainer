@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import madowBackingManualCorrections from "./madow-backing-manual-corrections.json";
 import tabAuditData from "./tab-audit-data.json";
 import {
   buildPhraseInstances,
   centsBetween,
   clamp,
   detectPitch,
-  extendDurationThroughNextMeasureTie,
+  extendDurationThroughFollowingTies,
   frequencyFor,
   nearestPlaybackRate,
   measurePosition,
@@ -455,7 +456,7 @@ const LIFE_OVER_SONG_MAP: SongPart[] = [
   { label: "ブレイク", range: "114–116", start: 114, end: 116, kind: "technique" },
   { label: "大サビ", range: "117–141", start: 117, end: 141, kind: "notes" },
   { label: "アウトロ", range: "142–148", start: 142, end: 148, kind: "technique" },
-  { label: "エンド", range: "149–151", start: 149, end: 151, kind: "rest" },
+  { label: "エンド", range: "149–156", start: 149, end: 156, kind: "rest" },
 ];
 
 const LIFE_OVER_NOTES = TAB_EVENTS.filter(
@@ -602,8 +603,9 @@ function buildLifeBackingTab() {
     tab[measure] = backingChord(chorusCycle[(measure - 120) % chorusCycle.length], [0, 4, 6, 10, 12, 14]);
   }
   tab[149] = backingChord(voicing3, [0, 6, 10, 12, 14]);
-  tab[150] = [];
-  tab[151] = [];
+  for (let measure = 150; measure <= 156; measure += 1) {
+    tab[measure] = [];
+  }
   return tab;
 }
 
@@ -712,7 +714,7 @@ const SONGS: Record<SongId, SongDefinition> = {
   "life-over": {
     title: "人生オーバー",
     artist: "harha Guitar TAB",
-    totalMeasures: 151,
+    totalMeasures: 156,
     originalBpm: 170,
     capo: 3,
     meterMap: {},
@@ -771,7 +773,7 @@ const SONGS: Record<SongId, SongDefinition> = {
         videoId: "vPexB7CEMGY",
         videoStartSeconds: 1,
         videoStartLabel: "TAB 約0:01",
-        description: "バッキング動画を全207小節ぶんフレーム抽出して作ったリズムギターTABです。コードの縦積みも弦ごとに保持し、リードと同じ小節位置のまま切り替えられます。",
+        description: "バッキング動画を全207小節ぶんフレーム抽出したTABです。原動画で目視確認した小節を優先し、残るOCR転記は要確認として区別します。動画同期中の音は簡易合成ではなく動画の原演奏を使います。",
       },
     },
   },
@@ -819,18 +821,20 @@ function parseFretSymbol(text: string) {
 
 type AuditedTabData = Record<SongId, Partial<Record<TrackId, Record<string, ScoreGlyph[]>>>>;
 const AUDITED_TAB_DATA = tabAuditData as AuditedTabData;
+const MADOW_BACKING_MANUAL_CORRECTIONS = madowBackingManualCorrections as Record<string, ScoreGlyph[]>;
 const AUDIT_REVIEW_MEASURES = new Set<string>();
 const MADOW_NATIVE_FRAME_CONFIRMED = new Set<string>([
   ...[7, 15, 57, 73, 93, 124, 149, 150, 156, 173, 184, 200, 201, 202, 204, 206, 207]
     .map((measure) => `madow:lead:${measure}`),
-  ...[78, 79, 128, 132, 136, 138, 143, 146, 147, 171, 176]
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+    78, 79, 128, 132, 136, 138, 143, 146, 147, 171, 176]
     .map((measure) => `madow:backing:${measure}`),
 ]);
 const MADOW_NEEDS_REVIEW = new Set<string>([
   ...[2, 3, 17, 18, 22, 26, 40, 60, 64, 68, 76, 77, 78, 79, 80, 81, 82,
     97, 110, 113, 114, 115, 119, 120, 121, 122, 129, 133, 137, 141,
     144, 148, 158, 165, 171, 183, 196, 197, 203].map((measure) => `madow:lead:${measure}`),
-  ...[2, 3, 4, 5, 6, 8, 9, 11, 12, 14, 16, 20, 22, 24, 26, 28, 30, 32,
+  ...[20, 22, 24, 26, 28, 30, 32,
     34, 39, 40, 56, 67, 68, 80, 82, 85, 87, 88, 90, 91, 97, 117, 118, 119,
     120, 121, 130, 140, 141, 142, 144, 145, 149, 158, 197, 199, 200, 202,
     204, 206, 207].map((measure) => `madow:backing:${measure}`),
@@ -838,7 +842,11 @@ const MADOW_NEEDS_REVIEW = new Set<string>([
 
 function auditedGlyphRecord(songId: SongId, trackId: TrackId) {
   const source = AUDITED_TAB_DATA[songId]?.[trackId] ?? {};
-  return Object.fromEntries(Object.entries(source).map(([measure, glyphs]) => {
+  return Object.fromEntries(Array.from({ length: SONGS[songId].totalMeasures }, (_, index) => {
+    const measure = String(index + 1);
+    const glyphs = songId === "madow" && trackId === "backing" && MADOW_BACKING_MANUAL_CORRECTIONS[measure]
+      ? MADOW_BACKING_MANUAL_CORRECTIONS[measure]
+      : source[measure] ?? [];
     const timedGlyphs = songId === "life-over" && trackId === "lead"
       ? normalizeLifeOverLeadEighthRun(glyphs)
       : glyphs;
@@ -851,7 +859,7 @@ function auditedGlyphRecord(songId: SongId, trackId: TrackId) {
         return { ...symbol, text: "?" };
       }),
     }));
-    return [Number(measure), safeGlyphs];
+    return [index + 1, safeGlyphs];
   })) as Record<number, ScoreGlyph[]>;
 }
 
@@ -991,9 +999,6 @@ function scorePlaybackEvents(
             }];
       });
     });
-    const nextMeasure = measure + 1;
-    const nextGlyphs = glyphsForTrack(songId, trackId, nextMeasure, lifeLeadSectionMode);
-    const nextMeasureSteps = stepsForMeasure(nextMeasure, SONGS[songId].meterMap);
     return baseEvents.map((event) => {
       const hasLaterMatchingAttack = baseEvents.some((candidate) => (
         candidate.step > event.step
@@ -1002,14 +1007,22 @@ function scorePlaybackEvents(
       ));
       if (hasLaterMatchingAttack) return event;
 
-      const extension = extendDurationThroughNextMeasureTie({
+      const extension = extendDurationThroughFollowingTies({
         baseDurationSteps: event.durationSteps,
         currentMeasureSteps: measureSteps,
         eventStep: event.step,
         stringNo: event.stringNo,
         fret: event.fret,
-        nextMeasureSteps,
-        nextGlyphs,
+        followingMeasures: Array.from(
+          { length: SONGS[songId].totalMeasures - measure },
+          (_, index) => {
+            const nextMeasure = measure + index + 1;
+            return {
+              measureSteps: stepsForMeasure(nextMeasure, SONGS[songId].meterMap),
+              glyphs: glyphsForTrack(songId, trackId, nextMeasure, lifeLeadSectionMode),
+            };
+          },
+        ),
       });
       return { ...event, ...extension };
     });
@@ -1767,7 +1780,7 @@ export function GuitarTrainer() {
       )
     : { measure: activeMeasure, step: timelineStep };
 
-  const sendVideoCommand = useCallback((command: "playVideo" | "pauseVideo" | "seekTo" | "setPlaybackRate", args: Array<number | boolean> = []) => {
+  const sendVideoCommand = useCallback((command: "playVideo" | "pauseVideo" | "seekTo" | "setPlaybackRate" | "setVolume", args: Array<number | boolean> = []) => {
     iframeRef.current?.contentWindow?.postMessage(JSON.stringify({
       event: "command",
       func: command,
@@ -1970,11 +1983,12 @@ export function GuitarTrainer() {
   }
 
   useEffect(() => {
+    sendVideoCommand("setVolume", [guitarVolume]);
     const context = audioContextRef.current;
     const gain = guitarGainRef.current;
     if (!context || !gain) return;
     gain.gain.setTargetAtTime(guitarVolume / 100, context.currentTime, 0.01);
-  }, [guitarVolume]);
+  }, [guitarVolume, sendVideoCommand]);
 
   useEffect(() => {
     const context = audioContextRef.current;
@@ -2242,7 +2256,10 @@ export function GuitarTrainer() {
         }
       }
 
-      scorePlaybackEvents(
+      // With video sync the source performance is the guitar audio. Scheduling
+      // the oscillator version as well made chords double, phase and cut out.
+      // Keep the synth only as the fallback for unsupported/offline speeds.
+      if (!useVideoSync) scorePlaybackEvents(
         scheduledSongId,
         scheduledTrackId,
         measure,
@@ -2890,6 +2907,7 @@ export function GuitarTrainer() {
                 loading="lazy"
                 onLoad={() => {
                   sendVideoCommand("setPlaybackRate", [bpm / song.originalBpm]);
+                  sendVideoCommand("setVolume", [guitarVolume]);
                   if (videoAutoplay) sendVideoCommand("playVideo");
                 }}
                 ref={iframeRef}
@@ -2925,7 +2943,7 @@ export function GuitarTrainer() {
             <div className="mt-3 grid gap-2 border-t border-stone-800 pt-3 sm:grid-cols-2">
               <label className="rounded-lg bg-stone-950 px-3 py-2">
                 <span className="flex items-center justify-between gap-3 text-xs font-bold">
-                  <span>ギター音</span>
+                  <span>ギター音（動画同期時は原演奏）</span>
                   <output className="text-lime-300 tabular-nums">{guitarVolume}%</output>
                 </span>
                 <input
