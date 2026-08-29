@@ -41,6 +41,7 @@ type ScoreGlyph = {
   slot: number;
   symbols: Array<{ stringNo: StringNumber; text: string; durationSlots?: number }>;
   technique?: "sl." | "H" | "full" | "harm." | "tie";
+  effects?: Array<"sl." | "full" | "harm." | "tr." | "P.M." | "let ring">;
 };
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -789,14 +790,14 @@ const MADOW_BACKING_VARIANTS: Record<MadowBackingVersion, TrackInfo> = {
     videoId: "qGDXx7x_7sc",
     videoStartSeconds: 4.8545,
     videoStartLabel: "TAB 約0:05",
-    description: "JoseLuRu版のリズムギターTAB。冒頭のカウント2小節を除き、元動画の4/4＋2/4を既存タイムラインの18小節（6/4）へ統合しています。",
+    description: "作者配布のGuitar ProデータからGTR 2を取り込んだリズムギターTABです。冒頭のカウント2小節を除き、4/4＋2/4を既存タイムラインの18小節（6/4）へ統合しています。",
   },
 };
 
 function trackFor(
   song: SongDefinition,
   trackId: TrackId,
-  madowBackingVersion: MadowBackingVersion = "jinzo",
+  madowBackingVersion: MadowBackingVersion = "joseluru",
 ): TrackInfo {
   if (song === SONGS.madow && trackId === "backing") {
     return MADOW_BACKING_VARIANTS[madowBackingVersion];
@@ -937,7 +938,7 @@ function glyphsForTrack(
   trackId: TrackId,
   measure: number,
   lifeLeadSectionMode: LifeLeadSectionMode = "original",
-  madowBackingVersion: MadowBackingVersion = "jinzo",
+  madowBackingVersion: MadowBackingVersion = "joseluru",
 ) {
   if (songId === "madow" && trackId === "backing" && madowBackingVersion === "joseluru") {
     return MADOW_JOSELURU_GLYPHS[measure] ?? [];
@@ -952,7 +953,7 @@ function notesForTrack(
   songId: SongId,
   trackId: TrackId,
   lifeLeadSectionMode: LifeLeadSectionMode = "original",
-  madowBackingVersion: MadowBackingVersion = "jinzo",
+  madowBackingVersion: MadowBackingVersion = "joseluru",
 ) {
   if (songId === "madow" && trackId === "backing" && madowBackingVersion === "joseluru") {
     return MADOW_JOSELURU_NOTES;
@@ -968,7 +969,7 @@ function migrateLearnedNotesToPhrases(
   trackId: TrackId,
   lifeLeadSectionMode: LifeLeadSectionMode,
   learnedNoteIds: Set<string>,
-  madowBackingVersion: MadowBackingVersion = "jinzo",
+  madowBackingVersion: MadowBackingVersion = "joseluru",
 ) {
   if (learnedNoteIds.size === 0) return [];
   const song = SONGS[songId];
@@ -1014,7 +1015,7 @@ function scorePlaybackEvents(
   trackId: TrackId,
   measure: number,
   lifeLeadSectionMode: LifeLeadSectionMode = "original",
-  madowBackingVersion: MadowBackingVersion = "jinzo",
+  madowBackingVersion: MadowBackingVersion = "joseluru",
 ): PlaybackEvent[] {
   const glyphs = glyphsForTrack(songId, trackId, measure, lifeLeadSectionMode, madowBackingVersion);
   if (glyphs) {
@@ -1360,6 +1361,23 @@ function ProceduralTabMeasure({
             {symbol.text}
           </span>
         ))) : <span className="tab-whole-rest" aria-hidden="true">━</span>}
+        {hasNotes && glyphs.map((glyph, index) => {
+          const labels = [
+            glyph.technique === "tie" ? "⌒" : glyph.technique,
+            ...(glyph.effects ?? []).filter((effect) => (
+              effect !== glyph.technique && effect !== "let ring"
+            )),
+          ].filter(Boolean);
+          return labels.length > 0 ? (
+            <span
+              className="tab-effect"
+              key={`${measure}-effect-${index}`}
+              style={{ left: `${((glyph.slot + 0.5) / 16) * 100}%` }}
+            >
+              {labels.join(" · ")}
+            </span>
+          ) : null;
+        })}
       </div>
       <div className="grid border-t border-stone-800 px-2 py-1 text-center text-[0.6rem] font-bold text-stone-500" style={{ gridTemplateColumns: `repeat(${beats * 2}, minmax(0, 1fr))` }} aria-hidden="true">
         {Array.from({ length: beats }, (_, index) => [String(index + 1), "＆"]).flat().map((beat, index) => <span key={`${measure}-${label}-beat-${index}`}>{beat}</span>)}
@@ -1485,7 +1503,7 @@ export function GuitarTrainer() {
   const [songId, setSongId] = useState<SongId>("life-over");
   const [trackId, setTrackId] = useState<TrackId>("lead");
   const [lifeLeadSectionMode, setLifeLeadSectionMode] = useState<LifeLeadSectionMode>("original");
-  const [madowBackingVersion, setMadowBackingVersion] = useState<MadowBackingVersion>("jinzo");
+  const [madowBackingVersion, setMadowBackingVersion] = useState<MadowBackingVersion>("joseluru");
   const [medleyMode, setMedleyMode] = useState(false);
   const [medleyPhase, setMedleyPhase] = useState<MedleyPhase | null>(null);
   const [noteIndex, setNoteIndex] = useState(0);
@@ -1576,7 +1594,7 @@ export function GuitarTrainer() {
             ? requestedTrackId
             : SONGS[nextSongId].defaultTrack;
           const nextLifeLeadSectionMode = saved.lifeLeadSectionMode === "middle" ? "middle" : "original";
-          const nextMadowBackingVersion = saved.madowBackingVersion === "joseluru" ? "joseluru" : "jinzo";
+          const nextMadowBackingVersion = saved.madowBackingVersion === "jinzo" ? "jinzo" : "joseluru";
           setSongId(nextSongId);
           setTrackId(nextTrackId);
           setLifeLeadSectionMode(nextLifeLeadSectionMode);
@@ -2878,7 +2896,7 @@ export function GuitarTrainer() {
                   onClick={() => switchMadowBackingVersion(version)}
                   type="button"
                 >
-                  {version === "jinzo" ? "JINZO版" : "JoseLuRu版（易しめ）"}
+                  {version === "jinzo" ? "JINZO動画版" : "作者TAB版（易しめ）"}
                 </button>
               ))}
             </div>

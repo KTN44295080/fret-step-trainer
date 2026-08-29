@@ -158,7 +158,9 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   assert.match(trainer, /capo: 0, lifeLeadSectionMode, medleyPhase: "life"/);
   assert.match(trainer, /capo: 0, madowBackingVersion, medleyPhase: "madow"/);
   assert.match(trainer, /videoId: "qGDXx7x_7sc"/);
-  assert.match(trainer, /JoseLuRu版（易しめ）/);
+  assert.match(trainer, /作者TAB版（易しめ）/);
+  assert.match(trainer, /useState<MadowBackingVersion>\("joseluru"\)/);
+  assert.match(trainer, /effect !== "let ring"/);
   assert.match(trainer, /18: 6/);
   assert.match(trainer, /madowBackingVersion === "joseluru"/);
   assert.doesNotMatch(trainer, /transposeLifeLeadSymbolForNoCapo|LIFE_NO_CAPO/);
