@@ -156,7 +156,11 @@ test("keeps the input meter, tuner, and audited TAB data in the client implement
   assert.match(trainer, /function startMedley/);
   assert.match(trainer, /function startMadowMedley/);
   assert.match(trainer, /capo: 0, lifeLeadSectionMode, medleyPhase: "life"/);
-  assert.match(trainer, /capo: 0, medleyPhase: "madow"/);
+  assert.match(trainer, /capo: 0, madowBackingVersion, medleyPhase: "madow"/);
+  assert.match(trainer, /videoId: "qGDXx7x_7sc"/);
+  assert.match(trainer, /JoseLuRu版（易しめ）/);
+  assert.match(trainer, /18: 6/);
+  assert.match(trainer, /madowBackingVersion === "joseluru"/);
   assert.doesNotMatch(trainer, /transposeLifeLeadSymbolForNoCapo|LIFE_NO_CAPO/);
   assert.match(trainer, /const effectiveCapo = 0/);
   assert.match(trainer, /scheduledSongId === "life-over" \? 0 : scheduledSong\.capo/);
@@ -478,4 +482,34 @@ test("keeps the video-audited lead strings and the single live monitor", async (
   assert.ok(tabData.madow.backing["205"].length > 0);
   assert.equal((trainer.match(/LIVE MONITOR/g) ?? []).length, 1);
   assert.doesNotMatch(trainer, /input-title|LIVE INPUT|LIVE JUDGE/);
+});
+
+test("JoseLuRu backing transcription stays on the canonical score contract", async () => {
+  const text = await readFile(
+    new URL("../app/madow-backing-joseluru.json", import.meta.url),
+    "utf8",
+  );
+  const score = JSON.parse(text);
+
+  assert.equal(Object.keys(score).length, 207);
+  assert.ok(score["18"].length > 0, "the combined 6/4 bar must contain notes");
+
+  for (const [measure, glyphs] of Object.entries(score)) {
+    for (const glyph of glyphs) {
+      const strings = glyph.symbols.map((symbol) => symbol.stringNo);
+      assert.equal(
+        new Set(strings).size,
+        strings.length,
+        `measure ${measure}, slot ${glyph.slot} repeats a string`,
+      );
+      for (const symbol of glyph.symbols) {
+        if (/^\d+$/.test(symbol.text)) {
+          assert.ok(
+            Number(symbol.text) <= 24,
+            `measure ${measure}, slot ${glyph.slot} has invalid fret ${symbol.text}`,
+          );
+        }
+      }
+    }
+  }
 });

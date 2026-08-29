@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import madowBackingManualCorrections from "./madow-backing-manual-corrections.json";
+import madowBackingJoseLuRu from "./madow-backing-joseluru.json";
 import tabAuditData from "./tab-audit-data.json";
 import {
   buildPhraseInstances,
@@ -404,6 +405,7 @@ const TECHNIQUE_TAB_GLYPHS: Record<number, ScoreGlyph[]> = {
 type SongId = "life-over" | "madow";
 type TrackId = "lead" | "backing" | "third";
 type LifeLeadSectionMode = "original" | "middle";
+type MadowBackingVersion = "jinzo" | "joseluru";
 
 type TrackInfo = {
   label: string;
@@ -741,7 +743,7 @@ const SONGS: Record<SongId, SongDefinition> = {
   },
   madow: {
     title: "惑う星",
-    artist: "結束バンド · JINZO-TABS",
+    artist: "結束バンド",
     totalMeasures: 207,
     originalBpm: 194,
     capo: 0,
@@ -779,7 +781,26 @@ const SONGS: Record<SongId, SongDefinition> = {
   },
 };
 
-function trackFor(song: SongDefinition, trackId: TrackId): TrackInfo {
+const MADOW_BACKING_VARIANTS: Record<MadowBackingVersion, TrackInfo> = {
+  jinzo: SONGS.madow.tracks.backing!,
+  joseluru: {
+    label: "リズムギター（バッキング）",
+    badge: "BACKING",
+    videoId: "qGDXx7x_7sc",
+    videoStartSeconds: 4.8545,
+    videoStartLabel: "TAB 約0:05",
+    description: "JoseLuRu版のリズムギターTAB。冒頭のカウント2小節を除き、元動画の4/4＋2/4を既存タイムラインの18小節（6/4）へ統合しています。",
+  },
+};
+
+function trackFor(
+  song: SongDefinition,
+  trackId: TrackId,
+  madowBackingVersion: MadowBackingVersion = "jinzo",
+): TrackInfo {
+  if (song === SONGS.madow && trackId === "backing") {
+    return MADOW_BACKING_VARIANTS[madowBackingVersion];
+  }
   return song.tracks[trackId] ?? song.tracks[song.defaultTrack]!;
 }
 
@@ -806,6 +827,7 @@ type PlaybackSession = {
   trackId: TrackId;
   capo: number;
   lifeLeadSectionMode: LifeLeadSectionMode;
+  madowBackingVersion: MadowBackingVersion;
   medleyPhase?: MedleyPhase;
 };
 
@@ -822,6 +844,10 @@ function parseFretSymbol(text: string) {
 type AuditedTabData = Record<SongId, Partial<Record<TrackId, Record<string, ScoreGlyph[]>>>>;
 const AUDITED_TAB_DATA = tabAuditData as AuditedTabData;
 const MADOW_BACKING_MANUAL_CORRECTIONS = madowBackingManualCorrections as Record<string, ScoreGlyph[]>;
+const MADOW_JOSELURU_GLYPHS = Object.fromEntries(
+  Object.entries(madowBackingJoseLuRu as Record<string, ScoreGlyph[]>).map(([measure, glyphs]) => [Number(measure), glyphs]),
+) as Record<number, ScoreGlyph[]>;
+const MADOW_JOSELURU_NOTES = notesFromGlyphs(MADOW_JOSELURU_GLYPHS, "madow-backing-joseluru");
 const AUDIT_REVIEW_MEASURES = new Set<string>();
 const MADOW_NATIVE_FRAME_CONFIRMED = new Set<string>([
   ...[7, 15, 57, 73, 93, 124, 149, 150, 156, 173, 184, 200, 201, 202, 204, 206, 207]
@@ -911,7 +937,11 @@ function glyphsForTrack(
   trackId: TrackId,
   measure: number,
   lifeLeadSectionMode: LifeLeadSectionMode = "original",
+  madowBackingVersion: MadowBackingVersion = "jinzo",
 ) {
+  if (songId === "madow" && trackId === "backing" && madowBackingVersion === "joseluru") {
+    return MADOW_JOSELURU_GLYPHS[measure] ?? [];
+  }
   if (songId === "life-over" && trackId === "lead" && lifeLeadSectionMode === "middle" && measure >= 66 && measure <= 81) {
     return LIFE_OVER_MIDDLE_GLYPHS[measure] ?? [];
   }
@@ -922,7 +952,11 @@ function notesForTrack(
   songId: SongId,
   trackId: TrackId,
   lifeLeadSectionMode: LifeLeadSectionMode = "original",
+  madowBackingVersion: MadowBackingVersion = "jinzo",
 ) {
+  if (songId === "madow" && trackId === "backing" && madowBackingVersion === "joseluru") {
+    return MADOW_JOSELURU_NOTES;
+  }
   if (songId === "life-over" && trackId === "lead" && lifeLeadSectionMode === "middle") {
     return LIFE_MIDDLE_SECTION_NOTES;
   }
@@ -934,19 +968,20 @@ function migrateLearnedNotesToPhrases(
   trackId: TrackId,
   lifeLeadSectionMode: LifeLeadSectionMode,
   learnedNoteIds: Set<string>,
+  madowBackingVersion: MadowBackingVersion = "jinzo",
 ) {
   if (learnedNoteIds.size === 0) return [];
   const song = SONGS[songId];
   const glyphRecord = Object.fromEntries(Array.from({ length: song.totalMeasures }, (_, index) => {
     const measure = index + 1;
-    return [measure, glyphsForTrack(songId, trackId, measure, lifeLeadSectionMode)];
+    return [measure, glyphsForTrack(songId, trackId, measure, lifeLeadSectionMode, madowBackingVersion)];
   })) as Record<number, ScoreGlyph[]>;
   const phrases = buildPhraseInstances(
     glyphRecord,
     song.map.map(({ label, start, end, phraseMeasures }) => ({ label, start, end, phraseMeasures })),
     songId,
   );
-  const notes = notesForTrack(songId, trackId, lifeLeadSectionMode);
+  const notes = notesForTrack(songId, trackId, lifeLeadSectionMode, madowBackingVersion);
   return [...new Set(phrases.filter((phrase) => {
     const phraseNotes = notes.filter((note) => (
       note.measure >= phrase.startMeasure && note.measure <= phrase.endMeasure
@@ -979,8 +1014,9 @@ function scorePlaybackEvents(
   trackId: TrackId,
   measure: number,
   lifeLeadSectionMode: LifeLeadSectionMode = "original",
+  madowBackingVersion: MadowBackingVersion = "jinzo",
 ): PlaybackEvent[] {
-  const glyphs = glyphsForTrack(songId, trackId, measure, lifeLeadSectionMode);
+  const glyphs = glyphsForTrack(songId, trackId, measure, lifeLeadSectionMode, madowBackingVersion);
   if (glyphs) {
     const measureSteps = stepsForMeasure(measure, SONGS[songId].meterMap);
     const baseEvents = glyphs.flatMap((glyph) => {
@@ -1021,7 +1057,7 @@ function scorePlaybackEvents(
             const nextMeasure = measure + index + 1;
             return {
               measureSteps: stepsForMeasure(nextMeasure, SONGS[songId].meterMap),
-              glyphs: glyphsForTrack(songId, trackId, nextMeasure, lifeLeadSectionMode),
+              glyphs: glyphsForTrack(songId, trackId, nextMeasure, lifeLeadSectionMode, madowBackingVersion),
             };
           },
         ),
@@ -1356,6 +1392,7 @@ function ScoreMeasure({
   measure,
   noCapoLifeLead,
   lifeLeadSectionMode,
+  madowBackingVersion,
   isPlaying,
   cursorStep,
   onSeek,
@@ -1365,6 +1402,7 @@ function ScoreMeasure({
   measure: number;
   noCapoLifeLead: boolean;
   lifeLeadSectionMode: LifeLeadSectionMode;
+  madowBackingVersion: MadowBackingVersion;
   isPlaying: boolean;
   cursorStep: number | null;
   onSeek: (measure: number, step: number) => void;
@@ -1374,7 +1412,7 @@ function ScoreMeasure({
     && lifeLeadSectionMode === "middle"
     && measure >= 66
     && measure <= 81;
-  const proceduralGlyphs = glyphsForTrack(songId, trackId, measure, lifeLeadSectionMode);
+  const proceduralGlyphs = glyphsForTrack(songId, trackId, measure, lifeLeadSectionMode, madowBackingVersion);
   const proceduralLabel = noCapoLifeLead
     ? usesMiddleStaff ? "LEAD · 中央段 · CAPO 0" : "LEAD · CAPO 0"
     : usesMiddleStaff ? "LEAD · 中央段"
@@ -1447,6 +1485,7 @@ export function GuitarTrainer() {
   const [songId, setSongId] = useState<SongId>("life-over");
   const [trackId, setTrackId] = useState<TrackId>("lead");
   const [lifeLeadSectionMode, setLifeLeadSectionMode] = useState<LifeLeadSectionMode>("original");
+  const [madowBackingVersion, setMadowBackingVersion] = useState<MadowBackingVersion>("jinzo");
   const [medleyMode, setMedleyMode] = useState(false);
   const [medleyPhase, setMedleyPhase] = useState<MedleyPhase | null>(null);
   const [noteIndex, setNoteIndex] = useState(0);
@@ -1512,6 +1551,7 @@ export function GuitarTrainer() {
           songId?: SongId;
           trackId?: TrackId;
           lifeLeadSectionMode?: LifeLeadSectionMode;
+          madowBackingVersion?: MadowBackingVersion;
           bpm?: number;
           timelineMeasure?: number;
           timelineStep?: number;
@@ -1536,9 +1576,11 @@ export function GuitarTrainer() {
             ? requestedTrackId
             : SONGS[nextSongId].defaultTrack;
           const nextLifeLeadSectionMode = saved.lifeLeadSectionMode === "middle" ? "middle" : "original";
+          const nextMadowBackingVersion = saved.madowBackingVersion === "joseluru" ? "joseluru" : "jinzo";
           setSongId(nextSongId);
           setTrackId(nextTrackId);
           setLifeLeadSectionMode(nextLifeLeadSectionMode);
+          setMadowBackingVersion(nextMadowBackingVersion);
           if (typeof saved.bpm === "number") setBpm(saved.bpm);
           if (typeof saved.timelineMeasure === "number") {
             restoredMeasureRef.current = saved.timelineMeasure;
@@ -1555,6 +1597,7 @@ export function GuitarTrainer() {
               nextTrackId,
               nextLifeLeadSectionMode,
               legacyLearnedIds,
+              nextMadowBackingVersion,
             ),
           ]));
           if (typeof saved.countIn === "boolean") setCountIn(saved.countIn);
@@ -1584,6 +1627,7 @@ export function GuitarTrainer() {
       songId,
       trackId,
       lifeLeadSectionMode,
+      madowBackingVersion,
       bpm,
       timelineMeasure,
       timelineStep,
@@ -1601,23 +1645,23 @@ export function GuitarTrainer() {
       loopEnabled,
       auditNotes,
     }));
-  }, [auditNotes, bpm, clickVolume, countIn, guitarVolume, inputSensitivity, learnedIds, learnedPhraseIds, lifeLeadSectionMode, loopEnabled, loopEnd, loopStart, metronome, songId, timelineMeasure, timelineStep, trackId, tunerString, videoSync]);
+  }, [auditNotes, bpm, clickVolume, countIn, guitarVolume, inputSensitivity, learnedIds, learnedPhraseIds, lifeLeadSectionMode, loopEnabled, loopEnd, loopStart, madowBackingVersion, metronome, songId, timelineMeasure, timelineStep, trackId, tunerString, videoSync]);
 
   const song = SONGS[songId];
   const effectiveTrackId = song.tracks[trackId] ? trackId : song.defaultTrack;
-  const track = trackFor(song, effectiveTrackId);
+  const track = trackFor(song, effectiveTrackId, madowBackingVersion);
   const noCapoLifeLead = medleyMode && songId === "life-over" && effectiveTrackId === "lead";
   // The source TAB uses absolute neck fret numbers. Capo 3 is an
   // installation instruction, not an offset to add to those numbers.
   const effectiveCapo = 0;
-  const activeNotes = notesForTrack(songId, effectiveTrackId, lifeLeadSectionMode);
+  const activeNotes = notesForTrack(songId, effectiveTrackId, lifeLeadSectionMode, madowBackingVersion);
   const activeGlyphRecord = useMemo(() => Object.fromEntries(
     Array.from({ length: song.totalMeasures }, (_, index) => {
       const measure = index + 1;
-      return [measure, glyphsForTrack(songId, effectiveTrackId, measure, lifeLeadSectionMode)];
+      return [measure, glyphsForTrack(songId, effectiveTrackId, measure, lifeLeadSectionMode, madowBackingVersion)];
     }),
-  ) as Record<number, ScoreGlyph[]>, [effectiveTrackId, lifeLeadSectionMode, song.totalMeasures, songId]);
-  const phraseScope = songId;
+  ) as Record<number, ScoreGlyph[]>, [effectiveTrackId, lifeLeadSectionMode, madowBackingVersion, song.totalMeasures, songId]);
+  const phraseScope = `${songId}:${effectiveTrackId}:${songId === "madow" && effectiveTrackId === "backing" ? madowBackingVersion : "default"}`;
   const activePhraseInstances = useMemo(() => buildPhraseInstances(
     activeGlyphRecord,
     song.map.map(({ label, start, end, phraseMeasures }) => ({ label, start, end, phraseMeasures })),
@@ -2162,6 +2206,7 @@ export function GuitarTrainer() {
       trackId?: TrackId;
       capo?: number;
       lifeLeadSectionMode?: LifeLeadSectionMode;
+      madowBackingVersion?: MadowBackingVersion;
       medleyPhase?: MedleyPhase;
       countIn?: boolean;
       videoSync?: boolean;
@@ -2170,13 +2215,15 @@ export function GuitarTrainer() {
     const scheduledSongId = options.songId ?? songId;
     const scheduledTrackId = options.trackId ?? trackId;
     const scheduledSong = SONGS[scheduledSongId];
-    const scheduledTrack = trackFor(scheduledSong, scheduledTrackId);
+    const scheduledMadowBackingVersion = options.madowBackingVersion ?? madowBackingVersion;
+    const scheduledTrack = trackFor(scheduledSong, scheduledTrackId, scheduledMadowBackingVersion);
     const scheduledCapo = options.capo ?? (scheduledSongId === "life-over" ? 0 : scheduledSong.capo);
     const scheduledLifeLeadSectionMode = options.lifeLeadSectionMode ?? lifeLeadSectionMode;
     const scheduledNotes = notesForTrack(
       scheduledSongId,
       scheduledTrackId,
       scheduledLifeLeadSectionMode,
+      scheduledMadowBackingVersion,
     );
     const useCountIn = options.countIn ?? countIn;
     const useVideoSync = options.videoSync ?? videoSync;
@@ -2199,6 +2246,7 @@ export function GuitarTrainer() {
       trackId: scheduledTrackId,
       capo: scheduledCapo,
       lifeLeadSectionMode: scheduledLifeLeadSectionMode,
+      madowBackingVersion: scheduledMadowBackingVersion,
       medleyPhase: options.medleyPhase,
     };
     setPausedSession(null);
@@ -2266,6 +2314,7 @@ export function GuitarTrainer() {
         scheduledTrackId,
         measure,
         scheduledLifeLeadSectionMode,
+        scheduledMadowBackingVersion,
       ).forEach((event) => {
         const eventOffset = measureOffset + event.step;
         if (eventOffset + 0.001 < boundedPosition) return;
@@ -2374,7 +2423,7 @@ export function GuitarTrainer() {
 
   function setMedleySurface(nextSongId: SongId, nextTrackId: TrackId, nextBpm: number, phase: MedleyPhase) {
     const nextSong = SONGS[nextSongId];
-    const nextTrack = trackFor(nextSong, nextTrackId);
+    const nextTrack = trackFor(nextSong, nextTrackId, madowBackingVersion);
     setSongId(nextSongId);
     setTrackId(nextTrackId);
     setMedleyMode(true);
@@ -2402,7 +2451,7 @@ export function GuitarTrainer() {
       "2曲通し · 惑う星 BACKING",
       madowBpm,
       0,
-      { songId: "madow", trackId: "backing", capo: 0, medleyPhase: "madow", countIn: false },
+      { songId: "madow", trackId: "backing", capo: 0, madowBackingVersion, medleyPhase: "madow", countIn: false },
     );
   }
 
@@ -2447,6 +2496,7 @@ export function GuitarTrainer() {
         trackId: session.trackId,
         capo: session.capo,
         lifeLeadSectionMode: session.lifeLeadSectionMode,
+        madowBackingVersion: session.madowBackingVersion,
         medleyPhase: session.medleyPhase,
         countIn: false,
       },
@@ -2480,6 +2530,7 @@ export function GuitarTrainer() {
         trackId: effectiveTrackId,
         capo: effectiveCapo,
         lifeLeadSectionMode,
+        madowBackingVersion,
         medleyPhase: currentMedleyPhase,
         countIn: false,
       },
@@ -2560,6 +2611,7 @@ export function GuitarTrainer() {
         trackId: session.trackId,
         capo: session.capo,
         lifeLeadSectionMode: session.lifeLeadSectionMode,
+        madowBackingVersion: session.madowBackingVersion,
         medleyPhase: session.medleyPhase,
         countIn: false,
         videoSync: useVideoSync,
@@ -2665,7 +2717,7 @@ export function GuitarTrainer() {
     if (nextSongId === songId && !medleyMode) return;
     const nextSong = SONGS[nextSongId];
     const nextTrackId = nextSong.tracks[trackId] ? trackId : nextSong.defaultTrack;
-    const nextTrack = trackFor(nextSong, nextTrackId);
+    const nextTrack = trackFor(nextSong, nextTrackId, madowBackingVersion);
     stopPlayback();
     setMedleyMode(false);
     setSongId(nextSongId);
@@ -2688,7 +2740,7 @@ export function GuitarTrainer() {
 
   function switchTrack(nextTrackId: TrackId) {
     if ((nextTrackId === trackId && !medleyMode) || !song.tracks[nextTrackId]) return;
-    const nextTrack = trackFor(song, nextTrackId);
+    const nextTrack = trackFor(song, nextTrackId, madowBackingVersion);
     stopPlayback();
     setMedleyMode(false);
     setTrackId(nextTrackId);
@@ -2708,6 +2760,21 @@ export function GuitarTrainer() {
     const nextIndex = nextNotes.findIndex((note) => note.measure >= timelineMeasure);
     setLifeLeadSectionMode(nextMode);
     setNoteIndex(nextIndex >= 0 ? nextIndex : Math.max(0, nextNotes.length - 1));
+    setPitchMatched(false);
+    setDetectedCents(null);
+  }
+
+  function switchMadowBackingVersion(nextVersion: MadowBackingVersion) {
+    if (nextVersion === madowBackingVersion) return;
+    stopPlayback();
+    const nextTrack = trackFor(SONGS.madow, "backing", nextVersion);
+    const nextNotes = notesForTrack("madow", "backing", "original", nextVersion);
+    const nextIndex = nextNotes.findIndex((note) => note.measure >= timelineMeasure);
+    setMadowBackingVersion(nextVersion);
+    setNoteIndex(nextIndex >= 0 ? nextIndex : Math.max(0, nextNotes.length - 1));
+    setVideoStart(videoTimeForMeasure(SONGS.madow, nextTrack, timelineMeasure));
+    setVideoAutoplay(false);
+    setVideoNonce((nonce) => nonce + 1);
     setPitchMatched(false);
     setDetectedCents(null);
   }
@@ -2800,6 +2867,22 @@ export function GuitarTrainer() {
               );
             })}
           </div>}
+          {!medleyMode && songId === "madow" && effectiveTrackId === "backing" && (
+            <div className="mt-2 grid grid-cols-2 gap-1 rounded-xl bg-stone-900 p-1" aria-label="バッキングTABのバージョンを選択">
+              {(["jinzo", "joseluru"] as MadowBackingVersion[]).map((version) => (
+                <button
+                  aria-pressed={madowBackingVersion === version}
+                  className="min-h-10 rounded-lg px-3 text-xs font-black text-stone-300 data-[active=true]:bg-lime-300 data-[active=true]:text-lime-950"
+                  data-active={madowBackingVersion === version}
+                  key={version}
+                  onClick={() => switchMadowBackingVersion(version)}
+                  type="button"
+                >
+                  {version === "jinzo" ? "JINZO版" : "JoseLuRu版（易しめ）"}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </header>
 
@@ -3140,6 +3223,7 @@ export function GuitarTrainer() {
                   measure={measure}
                   noCapoLifeLead={noCapoLifeLead}
                   lifeLeadSectionMode={lifeLeadSectionMode}
+                  madowBackingVersion={madowBackingVersion}
                   isPlaying={scoreCursor.measure === measure}
                   cursorStep={scoreCursor.measure === measure ? scoreCursor.step : null}
                   onSeek={seekToScorePosition}
